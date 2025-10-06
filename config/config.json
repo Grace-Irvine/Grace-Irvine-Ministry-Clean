@@ -1,0 +1,65 @@
+{
+  "source_sheet": {
+    "url": "https://docs.google.com/spreadsheets/d/1wescUQe9rIVLNcKdqmSLpzlAw9BGXMZmkFvjEF296nM/edit#gid=0",
+    "range": "总表!A1:Z"
+  },
+  "target_sheet": {
+    "url": "https://docs.google.com/spreadsheets/d/1ypiXsdrfOrWxsAVJxQfZVwA0qtzRzb-siGiV2vixuoc/edit#gid=0",
+    "range": "clean_sheet!A1"
+  },
+  "columns": {
+    "service_date": "主日日期",
+    "series": "讲道系列",
+    "sermon_title": "讲道标题",
+    "scripture": "经文",
+    "catechism": "要理问答",
+    "preacher": "讲员",
+    "reading": "读经",
+    "worship_lead": "敬拜带领",
+    "worship_team_1": "敬拜同工1",
+    "worship_team_2": "敬拜同工2",
+    "pianist": "司琴",
+    "songs": "詩歌",
+    "audio": "音控",
+    "video": "导播/摄影",
+    "propresenter_play": "ProPresenter播放",
+    "propresenter_update": "ProPresenter更新",
+    "assistant": "助教"
+  },
+  "cleaning_rules": {
+    "date_format": "YYYY-MM-DD",
+    "strip_spaces": true,
+    "trim_fullwidth_spaces": true,
+    "capitalize_names": true,
+    "normalize_scripture": true,
+    "split_songs_delimiters": ["、", ",", "/", "|"],
+    "merge_columns": {
+      "worship_team": ["worship_team_1", "worship_team_2"]
+    },
+    "role_whitelist": [
+      "敬拜带领",
+      "敬拜同工",
+      "司琴",
+      "音控",
+      "导播/摄影",
+      "ProPresenter播放",
+      "ProPresenter更新",
+      "助教"
+    ]
+  },
+  "alias_sources": {
+    "people_alias_sheet": {
+      "url": "https://docs.google.com/spreadsheets/d/1ypiXsdrfOrWxsAVJxQfZVwA0qtzRzb-siGiV2vixuoc/edit?gid=92852375#gid=92852375",
+      "range": "generated_aliases!A1:C"
+    }
+  },
+  "output_options": {
+    "overwrite": true,
+    "append_timestamp": true,
+    "timestamp_field": "updated_at",
+    "emit_csv_preview": "logs/clean_preview.csv",
+    "emit_json_preview": "logs/clean_preview.json",
+    "log_changes": true
+  }
+}
+
