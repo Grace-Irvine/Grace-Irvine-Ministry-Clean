@@ -36,7 +36,7 @@
 3. ✅ 配置 `config/config.json`
 4. ✅ 将服务账号密钥保存到 `config/service-account.json`
 
-详见主 [README.md](README.md) 的配置部分。
+详见主 [README.md](../README.md) 的配置部分。
 
 ## 架构概览
 
@@ -535,7 +535,7 @@ gcloud iam service-accounts delete \
 ## 支持
 
 如有问题或建议，请：
-1. 查看主 [README.md](README.md)
+1. 查看主 [README.md](../README.md)
 2. 查看 [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 3. 提交 GitHub Issue
 

@@ -7,14 +7,14 @@
 | 文档 | 描述 | 适用人群 |
 |-----|------|----------|
 | [README.md](README.md)（本文档） | 完整用户指南和技术文档 | 所有用户 |
-| [QUICKSTART.md](QUICKSTART.md) | ⚡ 5 分钟快速上手指南 | 新用户 |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | ☁️ 云部署完整指南（Cloud Run + Scheduler） | **云部署人员** |
-| [SERVICE_LAYER.md](SERVICE_LAYER.md) | 📦 服务层架构和使用指南 | **开发者** |
-| [STORAGE.md](STORAGE.md) | 💾 Cloud Storage 和数据管理 | **数据管理员** |
-| [MCP_INTEGRATION.md](MCP_INTEGRATION.md) | 🤖 MCP (Model Context Protocol) 集成指南 | **API 使用者** |
-| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | 🔧 故障排除指南 | **所有用户** |
-| [QUICK_COMMANDS.md](QUICK_COMMANDS.md) | 🚀 常用命令速查 | **运维人员** |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | 🏗️ 项目架构和设计 | **开发者** |
+| [docs/QUICKSTART.md](docs/QUICKSTART.md) | ⚡ 5 分钟快速上手指南 | 新用户 |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | ☁️ 云部署完整指南（Cloud Run + Scheduler） | **云部署人员** |
+| [docs/SERVICE_LAYER.md](docs/SERVICE_LAYER.md) | 📦 服务层架构和使用指南 | **开发者** |
+| [docs/STORAGE.md](docs/STORAGE.md) | 💾 Cloud Storage 和数据管理 | **数据管理员** |
+| [docs/MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) | 🤖 MCP (Model Context Protocol) 集成指南 | **API 使用者** |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | 🔧 故障排除指南 | **所有用户** |
+| [docs/QUICK_COMMANDS.md](docs/QUICK_COMMANDS.md) | 🚀 常用命令速查 | **运维人员** |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 🏗️ 项目架构和设计 | **开发者** |
 | [CHANGELOG.md](CHANGELOG.md) | 📝 版本历史 | 所有用户 |
 | [README_prompt.md](README_prompt.md) | 📋 详细任务说明 | 开发者 |
 
@@ -69,7 +69,7 @@
 
 如果你想要定时自动运行并提供 API 访问：
 
-👉 **查看 [云部署完整指南](DEPLOYMENT.md)**
+👉 **查看 [云部署完整指南](docs/DEPLOYMENT.md)**
 
 **特点：**
 - ☁️ 自动部署到 Google Cloud Run
@@ -172,8 +172,7 @@ python3 scripts/debug_clean_local.py \
 
 ### 详细文档
 
-- 📖 [QUICK_DEBUG_GUIDE.md](QUICK_DEBUG_GUIDE.md) - 快速指南
-- 📖 [DEBUG_WORKFLOW.md](DEBUG_WORKFLOW.md) - 完整工作流程
+- 📖 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - 故障排除指南
 
 ---
 

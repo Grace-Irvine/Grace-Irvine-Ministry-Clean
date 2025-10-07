@@ -48,8 +48,6 @@
 - `Dockerfile` - 容器配置
 - `deploy-cloud-run.sh` - 部署脚本
 - `setup-cloud-scheduler.sh` - 定时任务设置
-- `generate_yearly_data.py` - 年度数据生成
-- `verify_bucket_data.py` - Bucket 数据验证
 
 #### 测试脚本
 - `test_deployed_api.sh` - API 端点测试

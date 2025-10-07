@@ -83,8 +83,13 @@ logs/service_layer/
 ### 1. 创建 Bucket（首次）
 
 ```bash
-# 使用提供的脚本
-python3 create_bucket_and_test.py
+# 使用 gcloud 命令创建 bucket
+gcloud storage buckets create gs://grace-irvine-ministry-data \
+  --location=us-central1 \
+  --project=ai-for-god
+
+# 或使用 gsutil
+gsutil mb -l us-central1 -p ai-for-god gs://grace-irvine-ministry-data
 ```
 
 ### 2. 生成并上传数据
@@ -96,7 +101,16 @@ python3 create_bucket_and_test.py
 python3 scripts/clean_pipeline.py --config config/config.json
 ```
 
-#### 方法 2：通过命令行
+#### 方法 2：通过 API
+
+```bash
+# 生成并上传（Cloud Run 部署后）
+curl -X POST https://your-service-url.run.app/api/v1/service-layer/generate \
+  -H "Content-Type: application/json" \
+  -d '{"upload_to_bucket": true, "generate_all_years": true}'
+```
+
+#### 方法 3：通过命令行工具
 
 ```bash
 # 生成服务层数据
@@ -112,23 +126,30 @@ python3 scripts/cloud_storage_utils.py \
   --domain sermon
 ```
 
-#### 方法 3：通过 API
-
-```bash
-# 生成并上传（Cloud Run 部署后）
-curl -X POST https://your-service-url.run.app/api/v1/service-layer/generate \
-  -H "Content-Type: application/json" \
-  -d '{"upload_to_bucket": true}'
-```
-
 ### 3. 验证上传
 
 ```bash
 # 列出所有文件
 gsutil ls -lh gs://grace-irvine-ministry-data/domains/**/*.json
 
-# 或使用 Python 脚本
-python3 verify_bucket_data.py
+# 查看文件内容（前50行）
+gsutil cat gs://grace-irvine-ministry-data/domains/sermon/latest.json | python3 -m json.tool | head -50
+
+# 使用 Python 验证
+python3 -c "
+from google.cloud import storage
+from google.oauth2 import service_account
+import json
+
+credentials = service_account.Credentials.from_service_account_file('config/service-account.json')
+client = storage.Client(credentials=credentials)
+bucket = client.bucket('grace-irvine-ministry-data')
+
+# 列出所有文件
+blobs = client.list_blobs('grace-irvine-ministry-data', prefix='domains/')
+for blob in blobs:
+    print(f'{blob.name}: {blob.size / 1024:.1f} KB')
+"
 ```
 
 ---
@@ -286,20 +307,43 @@ Cloud Scheduler 触发
 ### 生成特定年份数据
 
 ```bash
-# 生成 2025 年数据
-python3 generate_yearly_data.py 2025 --upload
+# 通过 API 生成所有年份数据
+curl -X POST https://your-service-url.run.app/api/v1/service-layer/generate \
+  -H "Content-Type: application/json" \
+  -d '{"upload_to_bucket": true, "generate_all_years": true}'
 
-# 生成 2026 年数据
-python3 generate_yearly_data.py 2026 --upload
+# 或本地运行清洗管线（自动生成所有年份）
+python3 scripts/clean_pipeline.py --config config/config.json
 ```
 
-### 重新生成所有年份
+### 手动生成特定年份
 
-```bash
-# 循环生成所有年份
-for year in 2024 2025 2026; do
-  python3 generate_yearly_data.py $year --upload
-done
+```python
+# 使用 Python 脚本生成特定年份
+from pathlib import Path
+import pandas as pd
+import json
+from scripts.service_layer import ServiceLayerManager
+
+# 读取清洗层数据
+with open('logs/clean_preview.json', 'r', encoding='utf-8') as f:
+    data = json.load(f)
+df = pd.DataFrame(data)
+
+# 筛选特定年份
+year = 2025
+df_year = df[df['service_date'].str.startswith(str(year))]
+
+# 生成服务层数据
+manager = ServiceLayerManager()
+domain_data = manager.generate_domain_data(df_year, ['sermon', 'volunteer'])
+
+# 保存
+output_dir = Path(f'logs/service_layer/{year}')
+output_dir.mkdir(parents=True, exist_ok=True)
+for domain, data in domain_data.items():
+    with open(output_dir / f'{domain}_{year}.json', 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 ```
 
 ### 备份数据
@@ -456,12 +500,38 @@ gsutil -o "GSUtil:http_socket_timeout=300" cp ...
 **验证数据完整性**:
 
 ```bash
-# 运行验证脚本
-python3 verify_bucket_data.py
-
 # 检查记录数
 gsutil cat gs://grace-irvine-ministry-data/domains/sermon/2024/sermon_2024.json | \
   python3 -c "import sys, json; data=json.load(sys.stdin); print(f\"记录数: {data['metadata']['record_count']}\")"
+
+# 验证所有文件
+python3 -c "
+from google.cloud import storage
+from google.oauth2 import service_account
+import json
+
+credentials = service_account.Credentials.from_service_account_file('config/service-account.json')
+client = storage.Client(credentials=credentials)
+bucket = client.bucket('grace-irvine-ministry-data')
+
+# 检查 sermon domain
+for year in ['2024', '2025', '2026']:
+    blob = bucket.blob(f'domains/sermon/{year}/sermon_{year}.json')
+    if blob.exists():
+        data = json.loads(blob.download_as_text())
+        print(f\"✓ Sermon {year}: {data['metadata']['record_count']} 条记录\")
+    else:
+        print(f\"✗ Sermon {year}: 文件不存在\")
+
+# 检查 volunteer domain
+for year in ['2024', '2025', '2026']:
+    blob = bucket.blob(f'domains/volunteer/{year}/volunteer_{year}.json')
+    if blob.exists():
+        data = json.loads(blob.download_as_text())
+        print(f\"✓ Volunteer {year}: {data['metadata']['record_count']} 条记录\")
+    else:
+        print(f\"✗ Volunteer {year}: 文件不存在\")
+"
 ```
 
 ---
