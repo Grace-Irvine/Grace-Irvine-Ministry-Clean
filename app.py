@@ -21,6 +21,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent))
 
 from scripts.clean_pipeline import CleaningPipeline
+from scripts.change_detector import ChangeDetector
 
 # 配置日志
 logging.basicConfig(
@@ -49,6 +50,7 @@ CONFIG_PATH = os.getenv('CONFIG_PATH', 'config/config.json')
 class CleaningRequest(BaseModel):
     """清洗请求模型"""
     dry_run: bool = False
+    force: bool = False
     config_path: Optional[str] = None
 
 
@@ -56,12 +58,16 @@ class CleaningResponse(BaseModel):
     """清洗响应模型"""
     success: bool
     message: str
+    changed: bool = True
+    change_reason: Optional[str] = None
+    change_message: Optional[str] = None
     total_rows: int
     success_rows: int
     warning_rows: int
     error_rows: int
     timestamp: str
     preview_available: bool = False
+    last_update_time: Optional[str] = None
 
 
 class HealthResponse(BaseModel):
@@ -105,23 +111,63 @@ def verify_scheduler_token(authorization: Optional[str] = None) -> bool:
     return token == expected_token
 
 
-def run_cleaning_pipeline(config_path: str, dry_run: bool = False) -> Dict[str, Any]:
+def run_cleaning_pipeline(
+    config_path: str, 
+    dry_run: bool = False, 
+    force: bool = False
+) -> Dict[str, Any]:
     """
-    运行清洗管线
+    运行清洗管线（支持变化检测）
     
     Args:
         config_path: 配置文件路径
         dry_run: 是否为干跑模式
+        force: 是否强制执行（跳过变化检测）
         
     Returns:
         清洗结果摘要
     """
     try:
         pipeline = CleaningPipeline(config_path)
+        detector = ChangeDetector()
         
         # 读取原始数据
         raw_df = pipeline.read_source_data()
         total_rows = len(raw_df)
+        
+        # 检测变化（除非强制执行）
+        if not force:
+            has_changed, change_details = detector.has_changed(raw_df)
+            
+            if not has_changed:
+                logger.info("数据未发生变化，跳过清洗")
+                state_summary = detector.get_state_summary()
+                detector.update_state(raw_df, success=True)
+                
+                return {
+                    'success': True,
+                    'message': '数据未发生变化，无需更新',
+                    'changed': False,
+                    'change_reason': change_details['reason'],
+                    'total_rows': total_rows,
+                    'success_rows': state_summary.get('last_row_count', 0),
+                    'warning_rows': 0,
+                    'error_rows': 0,
+                    'timestamp': datetime.utcnow().isoformat() + 'Z',
+                    'preview_available': True,
+                    'last_update_time': state_summary.get('last_update_time')
+                }
+            
+            logger.info(f"检测到数据变化: {change_details['message']}")
+        else:
+            logger.info("强制执行模式，跳过变化检测")
+            change_details = {
+                'reason': 'forced',
+                'message': '强制执行',
+                'current_rows': total_rows,
+                'previous_rows': 0,
+                'row_change': 0
+            }
         
         # 清洗数据
         clean_df = pipeline.clean_data(raw_df)
@@ -132,9 +178,15 @@ def run_cleaning_pipeline(config_path: str, dry_run: bool = False) -> Dict[str, 
         # 写入输出
         pipeline.write_output(clean_df, dry_run=dry_run)
         
+        # 更新状态
+        detector.update_state(raw_df, success=True)
+        
         return {
             'success': True,
             'message': '清洗管线执行成功',
+            'changed': True,
+            'change_reason': change_details['reason'],
+            'change_message': change_details['message'],
             'total_rows': total_rows,
             'success_rows': report.success_rows,
             'warning_rows': report.warning_rows,
@@ -148,6 +200,7 @@ def run_cleaning_pipeline(config_path: str, dry_run: bool = False) -> Dict[str, 
         return {
             'success': False,
             'message': f'清洗管线执行失败: {str(e)}',
+            'changed': False,
             'total_rows': 0,
             'success_rows': 0,
             'warning_rows': 0,
@@ -201,7 +254,8 @@ async def trigger_cleaning(
     logger.info("收到定时触发请求，启动清洗任务...")
     
     try:
-        result = run_cleaning_pipeline(CONFIG_PATH, dry_run=False)
+        # 定时任务默认不强制执行，会检测变化
+        result = run_cleaning_pipeline(CONFIG_PATH, dry_run=False, force=False)
         return JSONResponse(content=result)
     except Exception as e:
         logger.error(f"清洗任务执行失败: {e}", exc_info=True)
@@ -221,10 +275,14 @@ async def clean_data(request: CleaningRequest):
     """
     config_path = request.config_path or CONFIG_PATH
     
-    logger.info(f"收到清洗请求: dry_run={request.dry_run}")
+    logger.info(f"收到清洗请求: dry_run={request.dry_run}, force={request.force}")
     
     try:
-        result = run_cleaning_pipeline(config_path, dry_run=request.dry_run)
+        result = run_cleaning_pipeline(
+            config_path, 
+            dry_run=request.dry_run, 
+            force=request.force
+        )
         return CleaningResponse(**result)
     except Exception as e:
         logger.error(f"清洗请求执行失败: {e}", exc_info=True)
