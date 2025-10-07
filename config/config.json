@@ -53,6 +53,10 @@
       "range": "generated_aliases!A1:C"
     }
   },
+  "volunteer_metadata_sheet": {
+    "url": "https://docs.google.com/spreadsheets/d/1ypiXsdrfOrWxsAVJxQfZVwA0qtzRzb-siGiV2vixuoc/edit?gid=900093610#gid=900093610",
+    "range": "volunteer_metadata!A1:H"
+  },
   "output_options": {
     "overwrite": true,
     "append_timestamp": true,
