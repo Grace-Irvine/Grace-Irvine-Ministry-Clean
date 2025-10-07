@@ -5,6 +5,239 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [3.0.0] - 2025-10-07
+
+### 新增 ✨
+
+#### MCP (Model Context Protocol) 集成
+- 🤖 **完整 MCP 服务器实现**：支持 AI 助手无缝集成
+  - 5 个 Tools（工具）：执行数据清洗、生成服务层、验证数据等
+  - 10 个 Resources（资源）：提供证道数据、同工数据、统计信息的只读访问
+  - 5 个 Prompts（提示词）：预定义分析模板，引导 AI 进行数据分析
+- 🔌 **双传输模式**
+  - stdio 模式：本地 Claude Desktop 集成
+  - HTTP/SSE 模式：远程访问支持
+- 🔒 **Bearer Token 鉴权**：保护远程 MCP 服务
+- 📦 **MCPB 打包格式**：一键分发和部署
+
+#### MCP Tools（工具）
+- `clean_ministry_data` - 触发数据清洗管线
+- `generate_service_layer` - 生成服务层数据
+- `validate_raw_data` - 校验原始数据质量
+- `add_person_alias` - 添加人员别名映射
+- `get_pipeline_status` - 查询管线运行状态
+
+#### MCP Resources（资源）
+- `ministry://sermon/records` - 证道记录
+- `ministry://sermon/by-preacher/{name}` - 按讲员查询
+- `ministry://sermon/series` - 讲道系列
+- `ministry://volunteer/assignments` - 同工安排
+- `ministry://volunteer/by-person/{id}` - 个人服侍记录
+- `ministry://volunteer/availability/{month}` - 排班空缺
+- `ministry://stats/summary` - 综合统计
+- `ministry://stats/preachers` - 讲员统计
+- `ministry://stats/volunteers` - 同工统计
+- `ministry://config/aliases` - 别名映射
+
+#### MCP Prompts（提示词）
+- `analyze_preaching_schedule` - 分析讲道安排
+- `analyze_volunteer_balance` - 分析同工均衡
+- `find_scheduling_gaps` - 查找排班空缺
+- `check_data_quality` - 检查数据质量
+- `suggest_alias_merges` - 建议合并别名
+
+#### 新增 HTTP 端点
+- `GET /mcp/capabilities` - MCP 能力查询
+- `POST /mcp` - JSON-RPC 端点
+- `POST /mcp/sse` - SSE 流式端点
+- `GET /mcp/tools` - 列出所有工具
+- `POST /mcp/tools/{name}` - 调用工具
+- `GET /mcp/resources` - 列出所有资源
+- `GET /mcp/resources/read` - 读取资源
+- `GET /mcp/prompts` - 列出所有提示词
+- `GET /mcp/prompts/{name}` - 获取提示词
+
+#### 新增工具和脚本
+- `mcp_server.py` - MCP Server 核心实现（stdio 模式）
+- `mcp_http_server.py` - HTTP/SSE 传输层实现
+- `deploy-mcp-cloud-run.sh` - MCP Cloud Run 一键部署
+- `test_mcp_server.sh` - MCP 本地测试脚本
+- `examples/mcp_client_example.py` - Python 客户端示例
+
+#### MCPB Bundle
+- 📦 **ministry-data.mcpb** - 独立可执行的 MCP 包
+  - 包含所有依赖和配置
+  - 支持一键安装到 Claude Desktop
+  - 支持 Windows、macOS、Linux
+- 🚀 **一键部署命令**
+  ```bash
+  npx -y @mcpbundle/cli install ministry-data.mcpb
+  ```
+
+#### 新增文档
+- `docs/MCP_DESIGN.md` - MCP 架构设计方案（1300+ 行）
+- `docs/MCP_DEPLOYMENT.md` - MCP 部署完整指南
+- `docs/MCP_INTEGRATION.md` - MCP 集成指南
+- `QUICKSTART_MCP.md` - MCP 5分钟快速开始
+- `MCP_IMPLEMENTATION_SUMMARY.md` - MCP 实施总结
+- `MCP_QUICK_REFERENCE.md` - MCP 快速参考
+- `MCPB_BUNDLE_GUIDE.md` - MCPB 打包指南
+- `config/claude_desktop_config.example.json` - Claude Desktop 配置示例
+
+### 改进 🔧
+
+#### AI 集成体验
+- 🤖 **自然语言查询**：通过 Claude Desktop 自然对话查询数据
+- 📊 **智能分析**：AI 自动调用合适的 Resources 进行分析
+- 🎯 **预定义模板**：5 个 Prompts 引导常见分析任务
+- 🔄 **自动化操作**：AI 可触发数据清洗和生成任务
+
+#### 架构优化
+- 🏗️ **模块化设计**：MCP Server 独立于 FastAPI 应用
+- 🔌 **可插拔传输**：stdio 和 HTTP/SSE 可切换
+- 📦 **容器化支持**：`MCP_MODE` 环境变量控制启动模式
+- 🌐 **云原生**：支持部署到 Cloud Run
+
+#### 安全增强
+- 🔐 **Bearer Token 鉴权**：保护 MCP HTTP 端点
+- 🔒 **Secret Manager 集成**：安全存储敏感配置
+- 📝 **请求审计日志**：记录所有 MCP 操作
+- 🛡️ **CORS 配置**：限制跨域访问
+
+### 技术栈更新 🛠️
+
+#### 新增依赖
+- `mcp>=1.0.0` - MCP Python SDK
+- `sse-starlette>=2.0.0` - SSE 流式传输
+- `jsonschema>=4.0.0` - JSON Schema 验证
+
+#### 部署工具
+- mcpbundle CLI - MCPB 打包工具
+- Cloud Run - MCP HTTP 服务部署
+
+### 使用场景 🎬
+
+#### 场景 1：AI 助手数据分析
+```
+用户: "请分析2024年的讲道安排"
+
+Claude:
+1. [调用 Resource] ministry://sermon/records?year=2024
+2. [调用 Resource] ministry://stats/preachers?year=2024
+3. [生成分析报告]
+
+输出:
+- 2024年共52次主日聚会
+- 12位讲员参与，其中王通讲道15次
+- 涉及15个讲道系列
+- 建议：李牧师仅讲道2次，可考虑增加机会
+```
+
+#### 场景 2：AI 辅助排班
+```
+用户: "10月份还有哪些周日没安排敬拜带领？"
+
+Claude:
+1. [调用 Resource] ministry://volunteer/availability/2024-10
+2. [分析空缺]
+3. [建议候选人]
+
+输出:
+- 10月6日和10月20日尚未安排
+- 建议候选人：谢苗（近期服侍2次）、华亚西（1次）
+```
+
+#### 场景 3：自动化数据清洗
+```
+用户: "帮我更新一下最新的数据"
+
+Claude:
+1. [调用 Tool] clean_ministry_data(dry_run=false)
+2. [调用 Tool] generate_service_layer(generate_all_years=true)
+
+输出:
+✅ 数据清洗完成 - 新增3条记录
+✅ 服务层生成完成 - 覆盖2024-2026年份
+```
+
+### MCP 架构 🏗️
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    AI 助手层                         │
+│  (Claude Desktop / ChatGPT / Custom AI)             │
+└────────────────┬────────────────────────────────────┘
+                 │ MCP 协议 (stdio / HTTP/SSE)
+┌────────────────▼────────────────────────────────────┐
+│                   MCP 服务器                         │
+│  ┌──────────┬──────────────┬──────────────────┐    │
+│  │  Tools   │  Resources   │     Prompts      │    │
+│  │ (执行操作)│  (数据访问)   │   (对话模板)      │    │
+│  └──────────┴──────────────┴──────────────────┘    │
+└────────────────┬────────────────────────────────────┘
+                 │
+┌────────────────▼────────────────────────────────────┐
+│                 FastAPI 应用层                       │
+│  清洗管线 + 服务层 + Cloud Storage                   │
+└─────────────────────────────────────────────────────┘
+```
+
+### 文档更新 📚
+- 📖 更新 README.md 到 v3.0
+- 📝 新增 MCP 相关文档（6个）
+- 🔍 更新 CHANGELOG.md 到 v3.0
+- 📋 新增配置示例文件
+
+### 成本估算 💰
+
+- **Cloud Run（MCP HTTP 模式）**：~$1.00/月（含 MCP 端点）
+- **Cloud Scheduler**：$0.00/月（免费额度内）
+- **Cloud Storage**：< $0.01/月
+- **总计**：~$1.00/月（相比 v2.0 增加 $0.43/月）
+
+### Breaking Changes ⚠️
+
+- 🔄 **MCP 端点需要鉴权**：HTTP 模式下默认启用 Bearer Token
+- 🔄 **Dockerfile 更新**：支持 `MCP_MODE` 环境变量
+- 🔄 **新增环境变量**：`MCP_BEARER_TOKEN`, `MCP_REQUIRE_AUTH`, `MCP_MODE`
+
+### 迁移指南
+
+#### 从 v2.0 升级到 v3.0
+
+1. **更新依赖**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **配置 MCP（可选）**
+   ```bash
+   # 本地 stdio 模式
+   cp config/claude_desktop_config.example.json ~/.config/Claude/claude_desktop_config.json
+   # 编辑并设置正确路径
+   
+   # 远程 HTTP 模式
+   export MCP_MODE=http
+   export MCP_BEARER_TOKEN=$(openssl rand -hex 32)
+   ./deploy-mcp-cloud-run.sh
+   ```
+
+3. **验证功能**
+   ```bash
+   # 测试本地 MCP Server
+   ./test_mcp_server.sh
+   
+   # 运行客户端示例
+   python examples/mcp_client_example.py
+   ```
+
+4. **继续使用原有功能**
+   - ✅ 所有 v2.0 功能完全兼容
+   - ✅ 原有 API 端点保持不变
+   - ✅ 数据清洗和服务层功能无变化
+
+---
+
 ## [2.0.0] - 2025-10-07
 
 ### 新增 ✨

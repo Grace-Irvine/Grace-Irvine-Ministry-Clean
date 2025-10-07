@@ -1,24 +1,68 @@
-# 教会主日事工数据清洗管线
+# 教会主日事工数据管理系统 (v3.0)
 
-一个可配置的数据清洗管线，用于将教会主日事工安排的原始 Google Sheet 数据进行清洗、标准化，并写入清洗层 Google Sheet。
+一个完整的教会主日事工数据管理系统，支持数据清洗、服务层转换、RESTful API 访问，以及 **AI 助手集成（MCP 协议）**。
 
-## 🎉 最新部署状态
+## ✨ v3.0 新特性：MCP (Model Context Protocol) 集成
+
+**🤖 现在支持 AI 助手无缝集成！** (2025-10-07)
+
+通过标准的 MCP 协议，你可以用自然语言与数据交互：
+
+### 快速体验
+
+```bash
+# 安装到 Claude Desktop (推荐)
+npx -y @mcpbundle/cli install ministry-data.mcpb
+
+# 或者本地测试
+./test_mcp_server.sh
+```
+
+### AI 对话示例
+
+```
+你: "请分析2024年的讲道安排"
+
+Claude:
+- 2024年共52次主日聚会
+- 12位讲员参与，其中王通讲道15次（最多）
+- 涉及15个讲道系列，包括"遇见耶稣"、"以弗所书系列"等
+- 建议：李牧师仅讲道2次，可以考虑增加机会
+
+---
+
+你: "10月份还有哪些周日没安排敬拜带领？"
+
+Claude:
+- 10月6日（周日）尚未安排敬拜带领
+- 10月20日（周日）尚未安排敬拜带领
+- 建议候选人：谢苗（近3个月服侍2次）、华亚西（1次）
+```
+
+👉 **查看 [MCP 快速开始](QUICKSTART_MCP.md)** | **[MCP 架构设计](docs/MCP_DESIGN.md)**
+
+---
+
+## 🎉 部署状态
 
 **✅ Cloud Run 部署成功！** (2025-10-07)
 
-- **服务 URL**: https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app
+- **RESTful API**: https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app
+- **MCP HTTP 端点**: https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app/mcp
 - **API 文档**: https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app/docs
-- **状态**: 所有服务层功能已验证通过
+- **状态**: v3.0 所有功能已验证通过
 - **数据**: 已成功上传 8 个领域文件到 Cloud Storage
-- **详细报告**: [部署验证总结](部署验证总结.md) | [完整报告](DEPLOYMENT_REPORT.md)
 
 快速测试：
 ```bash
 # 健康检查
 curl https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app/health
 
-# 查询 2024 年证道数据
+# 查询 2024 年证道数据（RESTful API）
 curl "https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app/api/v1/sermon?year=2024&limit=5"
+
+# 查询 MCP 能力
+curl https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app/mcp/capabilities
 ```
 
 ## 📚 文档导航
@@ -27,14 +71,21 @@ curl "https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app/api/v1/sermon?year=
 |-----|------|----------|
 | [README.md](README.md)（本文档） | 完整用户指南和技术文档 | 所有用户 |
 | [docs/QUICKSTART.md](docs/QUICKSTART.md) | ⚡ 5 分钟快速上手指南 | 新用户 |
+| **🤖 MCP 相关文档** | | |
+| [QUICKSTART_MCP.md](QUICKSTART_MCP.md) | 🤖 MCP 5分钟快速开始 | **MCP 新用户** |
+| [docs/MCP_DESIGN.md](docs/MCP_DESIGN.md) | 🏗️ MCP 架构设计方案（1300+ 行） | **开发者** |
+| [docs/MCP_DEPLOYMENT.md](docs/MCP_DEPLOYMENT.md) | ☁️ MCP 部署完整指南 | **MCP 部署人员** |
+| [docs/MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) | 🔌 MCP 集成指南 | **API 使用者** |
+| [MCP_QUICK_REFERENCE.md](MCP_QUICK_REFERENCE.md) | 📋 MCP 快速参考 | **MCP 用户** |
+| [MCPB_BUNDLE_GUIDE.md](MCPB_BUNDLE_GUIDE.md) | 📦 MCPB 打包指南 | **MCP 分发者** |
+| **传统部署文档** | | |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | ☁️ 云部署完整指南（Cloud Run + Scheduler） | **云部署人员** |
 | [docs/SERVICE_LAYER.md](docs/SERVICE_LAYER.md) | 📦 服务层架构和使用指南 | **开发者** |
 | [docs/STORAGE.md](docs/STORAGE.md) | 💾 Cloud Storage 和数据管理 | **数据管理员** |
-| [docs/MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) | 🤖 MCP (Model Context Protocol) 集成指南 | **API 使用者** |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | 🔧 故障排除指南 | **所有用户** |
 | [docs/QUICK_COMMANDS.md](docs/QUICK_COMMANDS.md) | 🚀 常用命令速查 | **运维人员** |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 🏗️ 项目架构和设计 | **开发者** |
-| [CHANGELOG.md](CHANGELOG.md) | 📝 版本历史 | 所有用户 |
+| [CHANGELOG.md](CHANGELOG.md) | 📝 版本历史（v3.0） | 所有用户 |
 | [README_prompt.md](README_prompt.md) | 📋 详细任务说明 | 开发者 |
 
 ## 📋 目录
@@ -51,6 +102,15 @@ curl "https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app/api/v1/sermon?year=
 
 ## ✨ 特性
 
+### 🤖 MCP 集成（v3.0 新增）
+- **🔌 AI 助手集成**：通过 MCP 协议支持 Claude Desktop、ChatGPT 等 AI 助手
+- **💬 自然语言交互**：用对话方式查询和分析数据，无需编写代码
+- **🛠️ 5 个 Tools**：执行数据清洗、生成服务层、验证数据、管理别名
+- **📦 10 个 Resources**：提供证道、同工、统计数据的结构化访问
+- **💡 5 个 Prompts**：预定义分析模板，引导 AI 进行常见分析任务
+- **🔀 双传输模式**：stdio（本地）+ HTTP/SSE（远程）
+- **📦 MCPB 打包**：一键安装到 Claude Desktop
+
 ### 核心清洗功能
 - **可配置的清洗规则**：通过 JSON 配置文件管理所有清洗规则
 - **人名别名映射**：支持将多个别名（中文名、英文名、昵称）映射到统一的人员 ID
@@ -60,33 +120,53 @@ curl "https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app/api/v1/sermon?year=
 - **数据校验**：生成详细的错误和警告报告
 - **Dry-run 模式**：可先预览清洗结果，不写回 Google Sheet
 
-### 服务层（v2.0新增）
+### 服务层（v2.0）
 - **📦 领域模型**：Sermon Domain（证道域）+ Volunteer Domain（同工域）
 - **🔄 多年份支持**：自动生成所有历史年份数据（2024-2026）
 - **💾 Cloud Storage**：自动上传到 Google Cloud Storage
 - **📁 智能组织**：按领域和年份组织文件（latest + yearly）
 
-### 云端部署（v2.0新增）
+### 云端部署（v2.0）
 - **☁️ Cloud Run 部署**：一键部署到 Google Cloud Run
 - **⏰ 智能定时任务**：每30分钟自动检测并更新（仅在数据变化时执行）
 - **🔍 变化检测**：SHA-256哈希比对，无变化时< 1秒返回
 - **🚀 RESTful API**：完整的数据查询和管理接口
-- **🤖 MCP 兼容**：支持 AI 助手集成和查询
-- **🔒 安全认证**：Bearer Token 保护定时触发端点
+- **🔒 安全认证**：Bearer Token 保护敏感端点
 - **📊 实时统计**：动态数据统计和分析
 
 ### 技术亮点
 - **详细日志**：记录所有操作和问题
-- **💰 成本友好**：基本在 Google Cloud 免费额度内（~$0.57/月）
+- **💰 成本友好**：基本在 Google Cloud 免费额度内（~$1.00/月）
 - **⚡ 高性能**：智能跳过、并行处理、增量更新
+- **🤖 AI 原生**：为 AI 集成设计的 MCP 协议支持
 
 ## 🚀 快速开始
 
 ### 部署方式选择
 
-#### 方式 1：云端部署（推荐）✨
+#### 方式 1：MCP 集成（推荐 v3.0）🤖
 
-如果你想要定时自动运行并提供 API 访问：
+如果你想要通过 AI 助手（如 Claude Desktop）交互式管理数据：
+
+👉 **查看 [MCP 快速开始](QUICKSTART_MCP.md)**
+
+**特点：**
+- 🤖 自然语言查询和分析
+- 💬 与 Claude Desktop 无缝集成
+- 📦 一键安装（MCPB 包）
+- 🔀 支持本地和远程模式
+- 🎯 预定义分析模板
+
+**安装时间：** 约5分钟
+
+```bash
+# 一键安装到 Claude Desktop
+npx -y @mcpbundle/cli install ministry-data.mcpb
+```
+
+#### 方式 2：云端部署（传统 API）✨
+
+如果你想要定时自动运行并提供 RESTful API 访问：
 
 👉 **查看 [云部署完整指南](docs/DEPLOYMENT.md)**
 
@@ -94,12 +174,12 @@ curl "https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app/api/v1/sermon?year=
 - ☁️ 自动部署到 Google Cloud Run
 - ⏰ 每30分钟智能检测和更新
 - 🔍 变化检测（无变化时秒级返回）
-- 🚀 RESTful API + MCP 支持
-- 💰 成本低（~$0.57/月）
+- 🚀 RESTful API + MCP HTTP 端点
+- 💰 成本低（~$1.00/月）
 
 **部署时间：** 约10分钟
 
-#### 方式 2：本地运行
+#### 方式 3：本地运行
 
 ### 1. 安装依赖
 
@@ -511,20 +591,45 @@ ProPresenter更新: 李慧
 ## 📂 项目结构
 
 ```
-church-ministry-clean/
+Grace-Irvine-Ministry-Clean/
 │
 ├── config/
-│   └── config.json              # 配置文件
+│   ├── config.json                          # 配置文件
+│   ├── claude_desktop_config.example.json   # Claude Desktop 配置示例
+│   └── env.example                          # 环境变量示例
 │
 ├── scripts/
 │   ├── clean_pipeline.py        # 主清洗管线
+│   ├── service_layer.py         # 服务层转换器
 │   ├── gsheet_utils.py          # Google Sheets 工具
 │   ├── cleaning_rules.py        # 清洗规则
 │   ├── validators.py            # 数据校验器
-│   └── alias_utils.py           # 别名映射工具
+│   ├── alias_utils.py           # 别名映射工具
+│   ├── cloud_storage_utils.py   # Cloud Storage 工具
+│   └── change_detector.py       # 变化检测
 │
-├── prompts/
-│   └── README_prompt.md         # 任务说明文档
+├── mcp_server.py                # MCP Server (stdio 模式) - v3.0
+├── mcp_http_server.py           # MCP HTTP/SSE 服务器 - v3.0
+├── app.py                       # FastAPI 应用
+├── Dockerfile                   # 容器配置
+│
+├── deploy-cloud-run.sh          # Cloud Run 部署脚本
+├── deploy-mcp-cloud-run.sh      # MCP Cloud Run 部署 - v3.0
+├── test_mcp_server.sh           # MCP 测试脚本 - v3.0
+│
+├── docs/
+│   ├── MCP_DESIGN.md            # MCP 架构设计 - v3.0
+│   ├── MCP_DEPLOYMENT.md        # MCP 部署指南 - v3.0
+│   ├── MCP_INTEGRATION.md       # MCP 集成指南 - v3.0
+│   ├── DEPLOYMENT.md            # 云部署指南
+│   ├── SERVICE_LAYER.md         # 服务层文档
+│   ├── STORAGE.md               # 存储文档
+│   └── ...
+│
+├── examples/
+│   └── mcp_client_example.py    # MCP 客户端示例 - v3.0
+│
+├── ministry-data.mcpb           # MCPB 打包文件 - v3.0
 │
 ├── tests/
 │   ├── sample_raw.csv           # 样例原始数据
@@ -534,12 +639,167 @@ church-ministry-clean/
 ├── logs/
 │   ├── clean_preview.csv        # 清洗预览 (CSV)
 │   ├── clean_preview.json       # 清洗预览 (JSON)
+│   ├── service_layer/           # 服务层数据
 │   └── validation_report_*.txt  # 校验报告
 │
-├── .gitignore                   # Git 忽略文件
+├── CHANGELOG.md                 # 版本历史 (v3.0)
+├── README.md                    # 本文档 (v3.0)
+├── QUICKSTART_MCP.md            # MCP 快速开始 - v3.0
+├── MCP_QUICK_REFERENCE.md       # MCP 快速参考 - v3.0
 ├── requirements.txt             # Python 依赖
-└── README.md                    # 本文档
+└── .gitignore                   # Git 忽略文件
 ```
+
+## 🏗️ MCP 架构设计（v3.0）
+
+### 系统架构图
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         AI 助手层                            │
+│  (Claude Desktop / ChatGPT / Custom AI)                     │
+└────────────────┬────────────────────────────────────────────┘
+                 │ MCP 协议 (stdio / HTTP/SSE)
+┌────────────────▼────────────────────────────────────────────┐
+│                      MCP 服务器                              │
+│  ┌──────────────┬──────────────┬──────────────────────┐    │
+│  │   Tools      │  Resources   │      Prompts         │    │
+│  │  (执行操作)   │  (数据访问)   │   (对话模板)          │    │
+│  └──────┬───────┴──────┬───────┴───────┬──────────────┘    │
+│         │              │               │                    │
+└─────────┼──────────────┼───────────────┼────────────────────┘
+          │              │               │
+┌─────────▼──────────────▼───────────────▼────────────────────┐
+│                      FastAPI 应用层                          │
+│  清洗管线 + 服务层 + Cloud Storage                           │
+└─────────────────────────────────────────────────────────────┘
+          │
+┌─────────▼───────────────────────────────────────────────────┐
+│                      数据存储层                              │
+│  ┌─────────────┬──────────────┬───────────────────────┐    │
+│  │ Google      │  Cloud       │  Local Files          │    │
+│  │ Sheets      │  Storage     │  (logs/, cache/)      │    │
+│  └─────────────┴──────────────┴───────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### MCP 三大组件
+
+#### 1. Tools（工具）- 执行操作
+
+| Tool | 功能 | 用途 |
+|------|------|------|
+| `clean_ministry_data` | 触发数据清洗管线 | 从 Google Sheets 读取并清洗数据 |
+| `generate_service_layer` | 生成服务层数据 | 转换为 sermon 和 volunteer 领域模型 |
+| `validate_raw_data` | 校验原始数据质量 | 检查必填字段、格式错误、重复记录 |
+| `add_person_alias` | 添加人员别名映射 | 管理人名别名（中英文名、昵称） |
+| `get_pipeline_status` | 查询管线运行状态 | 查看清洗历史和数据质量趋势 |
+
+#### 2. Resources（资源）- 数据访问
+
+**URI 格式**: `ministry://domain/resource/identifier?params`
+
+| Resource URI | 描述 | 返回内容 |
+|-------------|------|---------|
+| `ministry://sermon/records` | 证道记录 | 讲道标题、讲员、经文、诗歌 |
+| `ministry://sermon/by-preacher/{name}` | 按讲员查询 | 特定讲员的所有证道 |
+| `ministry://sermon/series` | 讲道系列 | 系列信息和进度 |
+| `ministry://volunteer/assignments` | 同工安排 | 敬拜、技术同工服侍安排 |
+| `ministry://volunteer/by-person/{id}` | 个人服侍记录 | 某人的所有服侍历史 |
+| `ministry://volunteer/availability/{month}` | 排班空缺 | 未安排的岗位 |
+| `ministry://stats/summary` | 综合统计 | 总体数据统计 |
+| `ministry://stats/preachers` | 讲员统计 | 讲道次数、频率 |
+| `ministry://stats/volunteers` | 同工统计 | 服侍次数、岗位分布 |
+| `ministry://config/aliases` | 别名映射 | 人员别名配置 |
+
+#### 3. Prompts（提示词）- 分析模板
+
+| Prompt | 功能 | 引导分析内容 |
+|--------|------|------------|
+| `analyze_preaching_schedule` | 分析讲道安排 | 系列进度、讲员分布、排班问题 |
+| `analyze_volunteer_balance` | 分析同工均衡 | 服侍次数、频率、负担分析 |
+| `find_scheduling_gaps` | 查找排班空缺 | 未安排岗位、候选人建议 |
+| `check_data_quality` | 检查数据质量 | 完整性、重复、格式问题 |
+| `suggest_alias_merges` | 建议合并别名 | 相似人名、中英文对应 |
+
+### 使用场景示例
+
+#### 场景 1：数据分析
+
+```
+用户: "请分析2024年的讲道安排"
+
+AI 助手执行：
+1. 读取 Resource: ministry://sermon/records?year=2024
+2. 读取 Resource: ministry://stats/preachers?year=2024
+3. 应用 Prompt: analyze_preaching_schedule
+4. 生成分析报告
+
+输出:
+✅ 2024年共52次主日聚会
+✅ 12位讲员参与，王通讲道15次（最多）
+✅ 15个讲道系列，"遇见耶稣"、"以弗所书系列"等
+⚠️ 建议：李牧师仅讲道2次，可考虑增加机会
+```
+
+#### 场景 2：排班助手
+
+```
+用户: "10月份哪些周日没安排敬拜带领？"
+
+AI 助手执行：
+1. 读取 Resource: ministry://volunteer/availability/2024-10
+2. 应用 Prompt: find_scheduling_gaps
+3. 查找候选人 Resource: ministry://volunteer/by-person/*
+
+输出:
+⚠️ 10月6日和10月20日尚未安排敬拜带领
+✅ 建议候选人：
+   - 谢苗（近3个月服侍2次，可用）
+   - 华亚西（近3个月服侍1次，可用）
+```
+
+#### 场景 3：自动化操作
+
+```
+用户: "帮我更新一下最新的数据"
+
+AI 助手执行：
+1. 调用 Tool: clean_ministry_data(dry_run=false, force=false)
+2. 调用 Tool: generate_service_layer(generate_all_years=true)
+
+输出:
+✅ 数据清洗完成
+   - 检测到数据变化：新增3条记录
+   - 成功清洗131条记录，无错误
+✅ 服务层生成完成
+   - 生成 sermon 和 volunteer 域
+   - 覆盖2024-2026年份
+```
+
+### 双传输模式
+
+#### stdio 模式（本地）
+- **适用场景**：Claude Desktop 本地集成
+- **优点**：无需网络，零配置，私密性高
+- **配置**：编辑 `~/.config/Claude/claude_desktop_config.json`
+
+#### HTTP/SSE 模式（远程）
+- **适用场景**：远程 API 访问，Web 应用集成
+- **优点**：可远程访问，支持多客户端，云端部署
+- **配置**：设置 Bearer Token，部署到 Cloud Run
+
+### 技术优势
+
+- ✅ **标准协议**：符合 MCP 规范，兼容所有 MCP 客户端
+- ✅ **模块化**：Tools、Resources、Prompts 独立设计
+- ✅ **可扩展**：易于添加新的工具和资源
+- ✅ **安全性**：Bearer Token 鉴权，请求审计日志
+- ✅ **云原生**：支持容器化和 Cloud Run 部署
+
+👉 **详细设计文档**: [docs/MCP_DESIGN.md](docs/MCP_DESIGN.md) (1300+ 行完整设计)
+
+---
 
 ## 📄 验收标准
 
