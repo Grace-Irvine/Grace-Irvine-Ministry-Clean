@@ -93,12 +93,12 @@ python scripts/clean_pipeline.py --config config/config.json
 
 ## ❓ 遇到问题？
 
-请参考 [README.md](README.md) 的「故障排除」章节，或查看详细的日志文件。
+请参考 [README.md](../README.md) 的「故障排除」章节，或查看详细的日志文件。
 
 ## 📚 更多信息
 
-- 完整文档：[README.md](README.md)
-- 任务说明：[prompts/README_prompt.md](prompts/README_prompt.md)
+- 完整文档：[README.md](../README.md)
+- 任务说明：[../README_prompt.md](../README_prompt.md)
 - 测试用例：[tests/test_cleaning.py](tests/test_cleaning.py)
 
 

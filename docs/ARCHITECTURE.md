@@ -4,9 +4,9 @@
 
 | 文档 | 用途 | 受众 |
 |-----|------|------|
-| [README.md](README.md) | 完整用户指南和 API 文档 | 所有用户 |
+| [README.md](../README.md) | 完整用户指南和 API 文档 | 所有用户 |
 | [QUICKSTART.md](QUICKSTART.md) | 5 分钟快速上手指南 | 新用户 |
-| [prompts/README_prompt.md](prompts/README_prompt.md) | 详细任务说明和设计规范 | 开发者 |
+| [../README_prompt.md](../README_prompt.md) | 详细任务说明和设计规范 | 开发者 |
 | PROJECT_OVERVIEW.md（本文档） | 项目结构和模块说明 | 开发者 |
 
 ## 🏗️ 项目架构
@@ -334,7 +334,7 @@ CSV/JSON      Google Sheet
 ## 📞 联系方式
 
 如有问题或建议，请：
-1. 查看文档：[README.md](README.md)
+1. 查看文档：[README.md](../README.md)
 2. 查看测试用例：[tests/test_cleaning.py](tests/test_cleaning.py)
 3. 提交 Issue（如果使用 GitHub）
 

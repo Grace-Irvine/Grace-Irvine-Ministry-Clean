@@ -558,7 +558,7 @@ print(f"上传的文件: {sermon_files}")
 - [STORAGE.md](STORAGE.md) - Cloud Storage 详细文档
 - [DEPLOYMENT.md](DEPLOYMENT.md) - 云部署指南
 - [MCP_INTEGRATION.md](MCP_INTEGRATION.md) - MCP 集成指南
-- [README.md](README.md) - 项目主文档
+- [README.md](../README.md) - 项目主文档
 
 ---
 
