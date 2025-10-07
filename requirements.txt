@@ -12,6 +12,12 @@ uvicorn[standard]>=0.27.0
 pydantic>=2.5.0
 python-multipart>=0.0.6
 
+# MCP (Model Context Protocol) SDK
+mcp>=1.16.0
+
+# SSE support for MCP HTTP transport
+sse-starlette>=2.0.0
+
 # Cloud Storage (optional, for service layer)
 # Uncomment if you need to upload domain data to GCS
 google-cloud-storage>=2.10.0

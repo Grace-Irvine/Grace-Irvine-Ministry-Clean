@@ -5,7 +5,15 @@
 - [概述](#概述)
 - [已有端点](#已有端点)
 - [新增端点（阶段1）](#新增端点阶段1)
+  - [Sermon 高级查询](#-1-sermon-高级查询)
+  - [Volunteer 高级查询](#-2-volunteer-高级查询)
+  - [统计分析](#-3-统计分析)
+  - [别名管理](#-4-别名管理)
+  - [数据验证和管线状态](#-5-数据验证和管线状态)
+  - [同工元数据和智能排班](#-6-同工元数据和智能排班)
 - [快速测试](#快速测试)
+- [MCP 端点映射](#mcp-端点映射)
+- [总结](#总结)
 
 ---
 
@@ -547,6 +555,320 @@ curl "http://localhost:8080/api/v1/pipeline/status?last_n_runs=5"
 
 ---
 
+### 🆕 6. 同工元数据和智能排班
+
+#### 获取同工元数据
+```
+GET /api/v1/volunteer/metadata
+```
+
+**参数**:
+- `person_id` (查询参数，可选): 人员ID，用于查询特定同工
+
+**示例**:
+```bash
+# 获取所有同工元数据
+curl "http://localhost:8080/api/v1/volunteer/metadata"
+
+# 查询特定同工
+curl --get --data-urlencode "person_id=person_8101_谢苗" \
+  "http://localhost:8080/api/v1/volunteer/metadata"
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "metadata": {
+    "total_count": 79,
+    "available_count": 77,
+    "unavailable_count": 2,
+    "family_groups": {
+      "family_bai_lv": ["person_2165_吕晓燕", "person_7613_白彧"],
+      "family_jing_ming": ["person_3850_靖铮", "person_6745_明明"]
+    },
+    "source": "Google Sheets"
+  },
+  "volunteers": [
+    {
+      "person_id": "person_8101_谢苗",
+      "person_name": "谢苗",
+      "family_group": "family_xie_qu",
+      "unavailable_start": "2025-11-01",
+      "unavailable_end": "2025-11-15",
+      "unavailable_reason": "旅行",
+      "notes": "",
+      "updated_at": "2025-10-07",
+      "is_available": false
+    }
+  ]
+}
+```
+
+---
+
+#### 添加/更新同工元数据
+```
+POST /api/v1/volunteer/metadata
+```
+
+**请求体**:
+```json
+{
+  "person_id": "person_8101_谢苗",
+  "person_name": "谢苗",
+  "family_group": "family_xie_qu",
+  "unavailable_start": "2025-11-01",
+  "unavailable_end": "2025-11-15",
+  "unavailable_reason": "旅行",
+  "notes": "提前通知"
+}
+```
+
+**示例**:
+```bash
+curl -X POST http://localhost:8080/api/v1/volunteer/metadata \
+  -H "Content-Type: application/json" \
+  -d '{
+    "person_id": "person_8101_谢苗",
+    "person_name": "谢苗",
+    "unavailable_start": "2025-11-01",
+    "unavailable_end": "2025-11-15",
+    "unavailable_reason": "旅行"
+  }'
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "成功更新同工元数据: 谢苗",
+  "metadata": {
+    "person_id": "person_8101_谢苗",
+    "person_name": "谢苗",
+    "unavailable_start": "2025-11-01",
+    "unavailable_end": "2025-11-15",
+    "unavailable_reason": "旅行"
+  },
+  "timestamp": "2025-10-07T12:00:00Z"
+}
+```
+
+**不可用标注说明**:
+- **临时不可用**: 填写实际的开始和结束日期
+  - 示例：`unavailable_start: "2025-11-01"`, `unavailable_end: "2025-11-15"`
+  - 适用：短期旅行、出差、培训等
+- **长期不可用**: 使用 `2099-12-31` 作为结束日期，表示无限期不可用
+  - 示例：`unavailable_start: "2025-10-01"`, `unavailable_end: "2099-12-31"`
+  - 适用：长期生病、工作繁忙、暂停服侍、退出团队等
+  - 建议在 `notes` 字段添加详细说明
+
+**相关文档**: `docs/UNAVAILABILITY_GUIDE.md`
+
+---
+
+#### 获取下周服侍安排
+```
+GET /api/v1/volunteer/next-week
+```
+
+自动计算下一个周日，返回该周的所有服侍安排（包括元数据和可用性状态）。
+
+**示例**:
+```bash
+curl "http://localhost:8080/api/v1/volunteer/next-week"
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "next_week": {
+    "sunday_date": "2025-10-13",
+    "week_range": "2025-10-07 到 2025-10-13",
+    "assignments_count": 2
+  },
+  "assignments": [
+    {
+      "service_date": "2025-10-13",
+      "worship": {
+        "lead": {
+          "id": "person_8101_谢苗",
+          "name": "谢苗",
+          "metadata": {
+            "is_available": true,
+            "family_group": "family_xie_qu"
+          }
+        }
+      },
+      "technical": {...}
+    }
+  ],
+  "timestamp": "2025-10-07T12:00:00Z"
+}
+```
+
+---
+
+#### 检测排班冲突
+```
+POST /api/v1/volunteer/conflicts
+```
+
+检测家庭成员冲突、不可用时间冲突等排班问题。
+
+**请求体**:
+```json
+{
+  "year_month": "2025-11",
+  "check_family": true,
+  "check_availability": true,
+  "check_overload": false
+}
+```
+
+**示例**:
+```bash
+curl -X POST http://localhost:8080/api/v1/volunteer/conflicts \
+  -H "Content-Type: application/json" \
+  -d '{
+    "year_month": "2025-11",
+    "check_family": true,
+    "check_availability": true
+  }'
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "conflicts": [
+    {
+      "type": "family_conflict",
+      "severity": "warning",
+      "week": "2025-11-10",
+      "week_range": "2025-11-04 到 2025-11-10",
+      "description": "谢苗, 屈小煊 是家庭成员，在同一周服侍",
+      "affected_persons": [
+        {
+          "person_id": "person_8101_谢苗",
+          "person_name": "谢苗",
+          "role": "敬拜主领",
+          "service_date": "2025-11-10"
+        }
+      ],
+      "family_group": "family_xie_qu",
+      "suggestion": "建议将其中一人调整到其他周"
+    },
+    {
+      "type": "unavailability_conflict",
+      "severity": "error",
+      "week": "2025-11-10",
+      "description": "谢苗 在 2025-11-01 到 2025-11-15 期间不可用，但被安排服侍",
+      "affected_persons": [...],
+      "unavailable_reason": "旅行",
+      "suggestion": "需要重新安排其他人"
+    }
+  ],
+  "summary": {
+    "total_conflicts": 2,
+    "by_severity": {
+      "error": 1,
+      "warning": 1
+    },
+    "by_type": {
+      "family_conflict": 1,
+      "unavailability_conflict": 1
+    }
+  },
+  "timestamp": "2025-10-07T12:00:00Z"
+}
+```
+
+---
+
+#### 获取排班建议
+```
+POST /api/v1/volunteer/suggestions
+```
+
+基于可用性、家庭关系、服侍频率等因素，智能推荐合适的同工。
+
+**请求体**:
+```json
+{
+  "service_date": "2025-10-20",
+  "required_roles": ["音控", "司琴", "敬拜主领"],
+  "consider_availability": true,
+  "consider_family": true,
+  "consider_balance": true
+}
+```
+
+**示例**:
+```bash
+curl -X POST http://localhost:8080/api/v1/volunteer/suggestions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "service_date": "2025-10-20",
+    "required_roles": ["音控", "司琴"],
+    "consider_availability": true,
+    "consider_family": true,
+    "consider_balance": true
+  }'
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "service_date": "2025-10-20",
+  "week_range": "2025-10-14 到 2025-10-20",
+  "suggestions": [
+    {
+      "role": "音控",
+      "candidates": [
+        {
+          "person_id": "person_6745_明明",
+          "person_name": "明明",
+          "score": 90,
+          "reasons": [
+            "时间可用",
+            "无家庭成员冲突",
+            "服侍次数适中（6次）",
+            "距离上次服侍已有一段时间"
+          ],
+          "concerns": [],
+          "statistics": {
+            "total_services": 6,
+            "unique_dates": 6,
+            "roles": {
+              "音控": 1,
+              "敬拜同工": 4,
+              "敬拜主领": 1
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-10-07T12:00:00Z"
+}
+```
+
+**评分系统**:
+- 基础分: 50
+- 时间可用: +10
+- 无家庭冲突: +10
+- 服侍较少: +20
+- 距离上次服侍时间长: +10
+- 岗位匹配: +15
+- 时间不可用: -100 (排除)
+- 家庭冲突: -30
+- 近期服侍: -10 到 -20
+
+---
+
 ## 快速测试
 
 ### 本地测试
@@ -591,6 +913,22 @@ curl "http://localhost:8080/api/v1/stats/volunteers?year=2024"
 
 # 管线状态
 curl "http://localhost:8080/api/v1/pipeline/status"
+
+# 同工元数据
+curl "http://localhost:8080/api/v1/volunteer/metadata"
+
+# 下周服侍安排
+curl "http://localhost:8080/api/v1/volunteer/next-week"
+
+# 检测排班冲突
+curl -X POST "http://localhost:8080/api/v1/volunteer/conflicts" \
+  -H "Content-Type: application/json" \
+  -d '{"year_month":"2025-11","check_family":true,"check_availability":true}'
+
+# 获取排班建议
+curl -X POST "http://localhost:8080/api/v1/volunteer/suggestions" \
+  -H "Content-Type: application/json" \
+  -d '{"service_date":"2025-10-20","required_roles":["音控"],"consider_availability":true}'
 ```
 
 ---
@@ -607,6 +945,9 @@ curl "http://localhost:8080/api/v1/pipeline/status"
 | Tool | `validate_raw_data` | `POST /api/v1/validate` |
 | Tool | `get_pipeline_status` | `GET /api/v1/pipeline/status` |
 | Tool | `trigger_scheduled_update` | `POST /trigger-cleaning` |
+| Tool | `update_volunteer_metadata` | `POST /api/v1/volunteer/metadata` |
+| Tool | `check_conflicts` | `POST /api/v1/volunteer/conflicts` |
+| Tool | `get_suggestions` | `POST /api/v1/volunteer/suggestions` |
 | **Resources** | | |
 | Resource | `sermon-records` | `GET /api/v1/sermon` |
 | Resource | `sermon-by-preacher` | `GET /api/v1/sermon/by-preacher/{name}` |
@@ -618,6 +959,8 @@ curl "http://localhost:8080/api/v1/pipeline/status"
 | Resource | `preacher-stats` | `GET /api/v1/stats/preachers` |
 | Resource | `volunteer-stats` | `GET /api/v1/stats/volunteers` |
 | Resource | `alias-mappings` | `GET /api/v1/config/aliases` |
+| Resource | `volunteer-metadata` | `GET /api/v1/volunteer/metadata` |
+| Resource | `next-week-schedule` | `GET /api/v1/volunteer/next-week` |
 
 ---
 
@@ -630,8 +973,18 @@ curl "http://localhost:8080/api/v1/pipeline/status"
 - ✅ **统计分析**: 2个端点
 - ✅ **别名管理**: 3个端点
 - ✅ **验证和状态**: 2个端点
+- ✅ **同工元数据和智能排班**: 5个端点
 
-**总计**: 11个新端点
+**总计**: 16个新端点
+
+### 新增功能亮点
+
+**智能排班系统**:
+- 🎯 自动检测家庭成员冲突
+- 📅 识别同工不可用时间（临时/长期）
+- 🤖 基于多因素的智能排班建议
+- ⚠️ 实时冲突检测和告警
+- 📊 服侍频率均衡分析
 
 ### 下一步
 
