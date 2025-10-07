@@ -25,8 +25,6 @@ import mcp.types as types
 # 导入应用层代码
 from scripts.clean_pipeline import CleaningPipeline
 from scripts.service_layer import ServiceLayerManager
-from scripts.validators import Validator
-from scripts.alias_utils import AliasUtils
 
 # 配置日志
 logging.basicConfig(
@@ -283,36 +281,52 @@ async def handle_call_tool(
             check_duplicates = arguments.get("check_duplicates", True)
             generate_report = arguments.get("generate_report", True)
             
-            validator = Validator(CONFIG_PATH)
-            validation_result = validator.validate()
-            
-            return [types.TextContent(
-                type="text",
-                text=json.dumps({
-                    "success": validation_result.get("is_valid", False),
-                    "errors": validation_result.get("errors", []),
-                    "warnings": validation_result.get("warnings", []),
-                    "timestamp": datetime.now().isoformat()
-                }, ensure_ascii=False, indent=2)
-            )]
+            try:
+                # 创建清洗管线并运行验证
+                pipeline = CleaningPipeline(CONFIG_PATH)
+                result = pipeline.run(dry_run=True, force_clean=False)
+                
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps({
+                        "success": result.get("success", False),
+                        "message": "Data validation completed via dry-run",
+                        "total_rows": result.get("total_rows", 0),
+                        "errors": result.get("error_rows", 0),
+                        "warnings": result.get("warning_rows", 0),
+                        "timestamp": datetime.now().isoformat()
+                    }, ensure_ascii=False, indent=2)
+                )]
+            except Exception as e:
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps({
+                        "success": False,
+                        "error": f"Validation failed: {str(e)}",
+                        "timestamp": datetime.now().isoformat()
+                    }, ensure_ascii=False, indent=2)
+                )]
         
         elif name == "add_person_alias":
-            # 添加别名
+            # 添加别名（需要手动编辑 Google Sheets 别名表）
             alias = arguments.get("alias")
             person_id = arguments.get("person_id")
             display_name = arguments.get("display_name")
             
             if not all([alias, person_id, display_name]):
-                raise ValueError("Missing required parameters")
-            
-            alias_utils = AliasUtils(CONFIG_PATH)
-            result = alias_utils.add_alias(alias, person_id, display_name)
+                raise ValueError("Missing required parameters: alias, person_id, display_name")
             
             return [types.TextContent(
                 type="text",
                 text=json.dumps({
-                    "success": result.get("success", False),
-                    "message": result.get("message", ""),
+                    "success": False,
+                    "message": "This feature requires manual implementation. Please add the alias to your Google Sheets alias table manually.",
+                    "instructions": {
+                        "alias": alias,
+                        "person_id": person_id,
+                        "display_name": display_name,
+                        "action": "Add these values to your 'Aliases' sheet in Google Sheets"
+                    },
                     "timestamp": datetime.now().isoformat()
                 }, ensure_ascii=False, indent=2)
             )]
@@ -604,14 +618,24 @@ async def handle_read_resource(uri: str) -> str:
             }, ensure_ascii=False, indent=2)
         
         elif uri == "ministry://config/aliases":
-            # 别名映射
-            alias_utils = AliasUtils(CONFIG_PATH)
-            aliases = alias_utils.get_all_aliases()
-            
-            return json.dumps({
-                "total_aliases": len(aliases),
-                "aliases": aliases
-            }, ensure_ascii=False, indent=2)
+            # 别名映射（从配置文件读取）
+            try:
+                with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                
+                aliases_url = config.get("data_sources", {}).get("aliases_sheet_url", "")
+                aliases_range = config.get("data_sources", {}).get("aliases_range", "Aliases!A:C")
+                
+                return json.dumps({
+                    "message": "Alias mappings are stored in Google Sheets",
+                    "sheets_url": aliases_url,
+                    "range": aliases_range,
+                    "instructions": "Use Google Sheets API or read the service layer data to see resolved aliases"
+                }, ensure_ascii=False, indent=2)
+            except Exception as e:
+                return json.dumps({
+                    "error": f"Could not load alias configuration: {str(e)}"
+                }, ensure_ascii=False, indent=2)
         
         else:
             return json.dumps({"error": f"Unknown resource URI: {uri}"})
