@@ -5,6 +5,117 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [3.0.3] - 2025-10-07
+
+### 修复 (Hotfix) 🔧
+- 🐛 **修复 GCS 客户端初始化失败问题**
+  - **问题**: `sync_from_gcs` 返回 "GCS client not initialized"
+  - **原因**: MCP Server 使用相对路径，工作目录不同导致文件找不到
+  - **修复**: 
+    - 使用绝对路径加载配置文件和服务账号
+    - `SCRIPT_DIR = Path(__file__).parent.absolute()`
+    - 自动转换相对路径为绝对路径
+  - **改进**: 
+    - 增强错误日志，显示详细的初始化过程
+    - `sync_from_gcs` 返回诊断信息（配置路径、文件存在性等）
+    - 提供故障排查建议
+
+### 重构 🔄
+- 🎯 **MCP Tools 架构重构：从 GCS Bucket 直接读取数据**
+  - **问题**: 每次查询都触发数据清洗管线，速度慢（30-60秒），频繁失败
+  - **解决方案**: MCP Server 直接从 GCS bucket 读取已生成的服务层数据
+  - **性能提升**: 响应时间从 30-60秒 降至 1-2秒
+  - **架构**: 优先从 GCS 读取，失败时回退到本地文件
+  
+### 新增 ✨
+- 📊 **新增 3 个查询工具**（AI 优先使用）
+  - `query_volunteers_by_date` - 查询指定日期的同工服侍安排
+  - `query_sermon_by_date` - 查询指定日期的证道信息
+  - `query_date_range` - 查询时间范围内的所有安排
+  
+- 🔄 **新增 `sync_from_gcs` 工具**
+  - 从 GCS bucket 同步最新数据到本地
+  - 支持多版本同步（latest, 2025, 2024...）
+  
+- 🔧 **GCS 客户端自动初始化**
+  - MCP Server 启动时自动连接 GCS
+  - 从 `config/config.json` 读取配置
+  - 支持服务账号认证
+
+### 改进 🎨
+- 📝 **工具分类标记**
+  - 查询工具：无标记（AI 优先使用）
+  - 管理工具：标记 `[管理员]`（AI 避免使用）
+  
+- 🏷️ **智能数据加载**
+  - 优先从 GCS bucket 读取（生产数据）
+  - 失败时自动回退到本地文件
+  - 友好的错误提示
+
+### 移除 ❌
+- 🗑️ **移除 2 个非核心工具**
+  - `get_pipeline_status` - 不再需要检查pipeline状态
+  - `add_person_alias` - 非 MCP 职责，需手动编辑 Sheets
+
+### 文档 📄
+- 📖 **新增重构说明文档**
+  - `MCP_TOOLS_REFACTOR_v3.0.3.md` - 完整重构说明
+  - 包含设计理念、使用示例、性能对比
+  - 迁移指南和测试验证步骤
+
+## [3.0.2] - 2025-10-07
+
+### 修复 🐛
+- 🔧 **修复 MCP Tools 参数不匹配问题**
+  - **问题 1**: `ServiceLayerManager.__init__() takes 1 positional argument but 2 were given`
+    - 原因：`ServiceLayerManager()` 不接受参数，但传递了 `CONFIG_PATH`
+    - 修复：移除 `CONFIG_PATH` 参数，使用无参初始化
+    - 位置：`mcp_server.py` line 254
+  
+  - **问题 2**: `CleaningPipeline.run() got an unexpected keyword argument 'force_clean'`
+    - 原因：`run()` 方法只接受 `dry_run` 参数，但传递了 `force_clean`
+    - 修复：移除 `force_clean` 参数
+    - 位置：`mcp_server.py` lines 235, 287
+  
+  - **问题 3**: `CleaningPipeline.run()` 返回值类型不匹配
+    - 原因：`run()` 返回 `int` 退出码，而非字典
+    - 修复：正确处理整数返回值，转换为适当的 JSON 响应
+    - 影响：`clean_ministry_data` 和 `validate_raw_data` 工具
+  
+  - **问题 4**: `ServiceLayerManager` 方法调用错误
+    - 原因：不存在 `generate_sermon_domain()` 和 `generate_volunteer_domain()` 方法
+    - 修复：使用 `generate_all_years()` 和 `generate_and_save()` 方法
+    - 加载清洗后的数据：从 `logs/clean_preview.json` 读取
+  
+  - 影响范围：所有 MCP Tools 调用
+  - 测试状态：待 Claude Desktop 验证
+
+### 改进 🎨
+- 📊 **增强 `generate_service_layer` 工具**
+  - 自动检查清洗数据是否存在，给出友好提示
+  - 支持 `generate_all_years` 参数，可选择生成所有年份或仅最新数据
+  - 返回生成的文件路径列表，便于后续操作
+  
+- 📈 **改进 `validate_raw_data` 工具**
+  - 返回验证报告预览（前 1000 字符）
+  - 指引用户查看完整验证报告文件
+
+## [3.0.1] - 2025-10-07
+
+### 修复 🐛
+- 🔧 **修复 MCP 查询失败问题**
+  - 问题：查询"下个主日都有谁事工"时出现 `'AnyUrl' object has no attribute 'startswith'` 错误
+  - 原因：MCP SDK 传递的 URI 是 `AnyUrl` 对象而非字符串
+  - 修复：在 `handle_read_resource` 函数中添加 `uri_str = str(uri)` 转换
+  - 影响范围：所有 MCP 资源查询（sermon, volunteer, stats 等）
+  - 测试：创建了完整的测试脚本 `test_next_sunday.sh`
+
+### 新增 ✨
+- 📄 **新增文档**
+  - `MCP_QUERY_FIX.md` - 技术修复说明文档
+  - `HOW_TO_QUERY_NEXT_SUNDAY.md` - 用户使用指南
+  - `test_next_sunday.sh` - 快速测试脚本
+
 ## [3.0.0] - 2025-10-07
 
 ### 新增 ✨

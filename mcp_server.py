@@ -33,16 +33,76 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 配置文件路径
-CONFIG_PATH = os.getenv('CONFIG_PATH', 'config/config.json')
-LOGS_DIR = Path("logs/service_layer")
+# 配置文件路径（使用绝对路径）
+SCRIPT_DIR = Path(__file__).parent.absolute()
+CONFIG_PATH = os.getenv('CONFIG_PATH', str(SCRIPT_DIR / 'config' / 'config.json'))
+LOGS_DIR = SCRIPT_DIR / "logs" / "service_layer"
+
+# 加载配置
+def load_config() -> Dict[str, Any]:
+    """加载配置文件"""
+    try:
+        config_file = Path(CONFIG_PATH)
+        if not config_file.exists():
+            logger.error(f"Config file not found: {config_file}")
+            return {}
+        
+        with open(config_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load config: {e}")
+        return {}
+
+CONFIG = load_config()
+STORAGE_CONFIG = CONFIG.get('service_layer', {}).get('storage', {})
+
+# 初始化 GCS 客户端（如果配置了）
+GCS_CLIENT = None
+if STORAGE_CONFIG.get('provider') == 'gcs':
+    try:
+        from scripts.cloud_storage_utils import DomainStorageManager
+        
+        # 转换服务账号文件路径为绝对路径
+        service_account_file = STORAGE_CONFIG.get('service_account_file')
+        if service_account_file and not Path(service_account_file).is_absolute():
+            service_account_file = str(SCRIPT_DIR / service_account_file)
+        
+        bucket_name = STORAGE_CONFIG.get('bucket', '')
+        base_path = STORAGE_CONFIG.get('base_path', 'domains/')
+        
+        logger.info(f"Initializing GCS client: bucket={bucket_name}, service_account={service_account_file}")
+        
+        GCS_CLIENT = DomainStorageManager(
+            bucket_name=bucket_name,
+            service_account_file=service_account_file,
+            base_path=base_path
+        )
+        logger.info(f"✅ GCS client initialized successfully: bucket={bucket_name}")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize GCS client: {e}", exc_info=True)
+        GCS_CLIENT = None
 
 # ============================================================
 # 辅助函数
 # ============================================================
 
 def load_service_layer_data(domain: str, year: Optional[str] = None) -> Dict[str, Any]:
-    """加载服务层数据"""
+    """
+    加载服务层数据
+    优先从 GCS 读取，如果失败则回退到本地文件
+    """
+    # 1. 尝试从 GCS 读取
+    if GCS_CLIENT:
+        try:
+            version = year if year else 'latest'
+            logger.info(f"Loading {domain} data from GCS (version: {version})")
+            data = GCS_CLIENT.download_domain_data(domain, version)
+            logger.info(f"Successfully loaded {domain} from GCS")
+            return data
+        except Exception as e:
+            logger.warning(f"Failed to load from GCS, falling back to local: {e}")
+    
+    # 2. 回退到本地文件
     try:
         if year:
             data_path = LOGS_DIR / year / f"{domain}_{year}.json"
@@ -50,8 +110,9 @@ def load_service_layer_data(domain: str, year: Optional[str] = None) -> Dict[str
             data_path = LOGS_DIR / f"{domain}.json"
         
         if not data_path.exists():
-            return {"error": f"Data file not found: {data_path}"}
+            return {"error": f"Data not found in GCS or local: {domain} (year={year})"}
         
+        logger.info(f"Loading {domain} data from local file: {data_path}")
         with open(data_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
@@ -116,9 +177,74 @@ server = Server("ministry-data-mcp")
 async def handle_list_tools() -> list[types.Tool]:
     """列出所有可用工具"""
     return [
+        # ========== 查询工具（常用） ==========
+        types.Tool(
+            name="query_volunteers_by_date",
+            description="查询指定日期的同工服侍安排（如：下个主日的服侍人员）",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "date": {
+                        "type": "string",
+                        "description": "日期（格式：YYYY-MM-DD），如 '2025-10-12'"
+                    },
+                    "year": {
+                        "type": "string",
+                        "description": "可选：指定年份（如 '2025'），默认使用 latest",
+                        "default": None
+                    }
+                },
+                "required": ["date"]
+            }
+        ),
+        types.Tool(
+            name="query_sermon_by_date",
+            description="查询指定日期的证道信息（讲员、题目、经文等）",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "date": {
+                        "type": "string",
+                        "description": "日期（格式：YYYY-MM-DD）"
+                    },
+                    "year": {
+                        "type": "string",
+                        "description": "可选：指定年份",
+                        "default": None
+                    }
+                },
+                "required": ["date"]
+            }
+        ),
+        types.Tool(
+            name="query_date_range",
+            description="查询一段时间范围内的所有服侍安排",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "start_date": {
+                        "type": "string",
+                        "description": "开始日期（YYYY-MM-DD）"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "结束日期（YYYY-MM-DD）"
+                    },
+                    "domain": {
+                        "type": "string",
+                        "enum": ["volunteer", "sermon", "both"],
+                        "description": "查询的域",
+                        "default": "both"
+                    }
+                },
+                "required": ["start_date", "end_date"]
+            }
+        ),
+        
+        # ========== 数据管理工具（管理员使用） ==========
         types.Tool(
             name="clean_ministry_data",
-            description="触发数据清洗管线，从原始层读取数据并清洗标准化",
+            description="[管理员] 触发数据清洗管线，从原始层读取数据并清洗标准化",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -126,18 +252,13 @@ async def handle_list_tools() -> list[types.Tool]:
                         "type": "boolean",
                         "description": "是否为测试模式（不写入Google Sheets）",
                         "default": False
-                    },
-                    "force": {
-                        "type": "boolean",
-                        "description": "是否强制执行（跳过变化检测）",
-                        "default": False
                     }
                 }
             }
         ),
         types.Tool(
             name="generate_service_layer",
-            description="生成或更新服务层领域数据（sermon 和 volunteer 域）",
+            description="[管理员] 生成或更新服务层领域数据（sermon 和 volunteer 域）",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -155,14 +276,14 @@ async def handle_list_tools() -> list[types.Tool]:
                     "upload_to_bucket": {
                         "type": "boolean",
                         "description": "是否上传到 Cloud Storage",
-                        "default": False
+                        "default": True
                     }
                 }
             }
         ),
         types.Tool(
             name="validate_raw_data",
-            description="校验原始数据质量，检查必填字段、格式错误等（不执行清洗）",
+            description="[管理员] 校验原始数据质量，检查必填字段、格式错误等（不执行清洗）",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -180,37 +301,22 @@ async def handle_list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
-            name="add_person_alias",
-            description="添加人员别名映射（例如：将'张牧师'和'Pastor Zhang'映射到同一person_id）",
+            name="sync_from_gcs",
+            description="[管理员] 从 Google Cloud Storage 同步最新的服务层数据到本地",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "alias": {
-                        "type": "string",
-                        "description": "别名（如'张牧师'）"
+                    "domains": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": ["sermon", "volunteer"]},
+                        "description": "要同步的领域",
+                        "default": ["sermon", "volunteer"]
                     },
-                    "person_id": {
-                        "type": "string",
-                        "description": "人员ID（如'person_6511_王通'）"
-                    },
-                    "display_name": {
-                        "type": "string",
-                        "description": "显示名称"
-                    }
-                },
-                "required": ["alias", "person_id", "display_name"]
-            }
-        ),
-        types.Tool(
-            name="get_pipeline_status",
-            description="获取数据清洗管线的运行状态和历史记录",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "last_n_runs": {
-                        "type": "integer",
-                        "description": "返回最近N次运行记录",
-                        "default": 10
+                    "versions": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "要同步的版本列表（如 ['latest', '2025', '2024']）",
+                        "default": ["latest"]
                     }
                 }
             }
@@ -226,21 +332,207 @@ async def handle_call_tool(
     """处理工具调用"""
     
     try:
-        if name == "clean_ministry_data":
-            # 执行数据清洗
-            dry_run = arguments.get("dry_run", False)
-            force = arguments.get("force", False)
+        # ========== 查询工具 ==========
+        if name == "query_volunteers_by_date":
+            date = arguments.get("date")
+            year = arguments.get("year")
             
-            pipeline = CleaningPipeline(CONFIG_PATH)
-            result = pipeline.run(dry_run=dry_run, force_clean=force)
+            # 加载 volunteer 数据
+            data = load_service_layer_data("volunteer", year)
+            
+            if "error" in data:
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps({
+                        "success": False,
+                        "error": data["error"],
+                        "timestamp": datetime.now().isoformat()
+                    }, ensure_ascii=False, indent=2)
+                )]
+            
+            # 过滤指定日期
+            volunteers = data.get("volunteers", [])
+            result = [v for v in volunteers if v.get("service_date", "").startswith(date)]
             
             return [types.TextContent(
                 type="text",
                 text=json.dumps({
-                    "success": result.get("success", False),
-                    "message": result.get("message", ""),
-                    "total_rows": result.get("total_rows", 0),
-                    "success_rows": result.get("success_rows", 0),
+                    "success": True,
+                    "date": date,
+                    "assignments": result,
+                    "count": len(result),
+                    "timestamp": datetime.now().isoformat()
+                }, ensure_ascii=False, indent=2)
+            )]
+        
+        elif name == "query_sermon_by_date":
+            date = arguments.get("date")
+            year = arguments.get("year")
+            
+            # 加载 sermon 数据
+            data = load_service_layer_data("sermon", year)
+            
+            if "error" in data:
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps({
+                        "success": False,
+                        "error": data["error"],
+                        "timestamp": datetime.now().isoformat()
+                    }, ensure_ascii=False, indent=2)
+                )]
+            
+            # 过滤指定日期
+            sermons = data.get("sermons", [])
+            result = [s for s in sermons if s.get("service_date", "").startswith(date)]
+            
+            return [types.TextContent(
+                type="text",
+                text=json.dumps({
+                    "success": True,
+                    "date": date,
+                    "sermons": result,
+                    "count": len(result),
+                    "timestamp": datetime.now().isoformat()
+                }, ensure_ascii=False, indent=2)
+            )]
+        
+        elif name == "query_date_range":
+            start_date = arguments.get("start_date")
+            end_date = arguments.get("end_date")
+            domain = arguments.get("domain", "both")
+            
+            results = {}
+            
+            # 查询 volunteer
+            if domain in ["volunteer", "both"]:
+                volunteer_data = load_service_layer_data("volunteer")
+                if "error" not in volunteer_data:
+                    volunteers = volunteer_data.get("volunteers", [])
+                    filtered = [
+                        v for v in volunteers
+                        if start_date <= v.get("service_date", "") <= end_date
+                    ]
+                    results["volunteer"] = {
+                        "count": len(filtered),
+                        "records": filtered
+                    }
+            
+            # 查询 sermon
+            if domain in ["sermon", "both"]:
+                sermon_data = load_service_layer_data("sermon")
+                if "error" not in sermon_data:
+                    sermons = sermon_data.get("sermons", [])
+                    filtered = [
+                        s for s in sermons
+                        if start_date <= s.get("service_date", "") <= end_date
+                    ]
+                    results["sermon"] = {
+                        "count": len(filtered),
+                        "records": filtered
+                    }
+            
+            return [types.TextContent(
+                type="text",
+                text=json.dumps({
+                    "success": True,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "results": results,
+                    "timestamp": datetime.now().isoformat()
+                }, ensure_ascii=False, indent=2)
+            )]
+        
+        elif name == "sync_from_gcs":
+            domains = arguments.get("domains", ["sermon", "volunteer"])
+            versions = arguments.get("versions", ["latest"])
+            
+            if not GCS_CLIENT:
+                # 提供详细的诊断信息
+                diagnostic_info = {
+                    "config_path": CONFIG_PATH,
+                    "config_exists": Path(CONFIG_PATH).exists(),
+                    "storage_config": STORAGE_CONFIG,
+                    "script_dir": str(SCRIPT_DIR),
+                }
+                
+                # 检查服务账号文件
+                service_account_file = STORAGE_CONFIG.get('service_account_file')
+                if service_account_file:
+                    sa_path = Path(service_account_file)
+                    if not sa_path.is_absolute():
+                        sa_path = SCRIPT_DIR / service_account_file
+                    diagnostic_info["service_account_file"] = str(sa_path)
+                    diagnostic_info["service_account_exists"] = sa_path.exists()
+                
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps({
+                        "success": False,
+                        "error": "GCS client not initialized. Check configuration and logs.",
+                        "diagnostic": diagnostic_info,
+                        "suggestions": [
+                            "1. Check if config/config.json exists",
+                            "2. Check if config/service-account.json exists",
+                            "3. Verify google-cloud-storage is installed: pip install google-cloud-storage",
+                            "4. Check MCP Server logs for detailed error messages"
+                        ],
+                        "timestamp": datetime.now().isoformat()
+                    }, ensure_ascii=False, indent=2)
+                )]
+            
+            synced_files = {}
+            
+            for domain in domains:
+                synced_files[domain] = {}
+                for version in versions:
+                    try:
+                        # 从 GCS 下载
+                        data = GCS_CLIENT.download_domain_data(domain, version)
+                        
+                        # 保存到本地
+                        if version == "latest":
+                            local_path = LOGS_DIR / f"{domain}.json"
+                        else:
+                            local_path = LOGS_DIR / version / f"{domain}_{version}.json"
+                        
+                        local_path.parent.mkdir(parents=True, exist_ok=True)
+                        
+                        with open(local_path, 'w', encoding='utf-8') as f:
+                            json.dump(data, f, ensure_ascii=False, indent=2)
+                        
+                        synced_files[domain][version] = str(local_path)
+                        logger.info(f"Synced {domain}/{version} to {local_path}")
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to sync {domain}/{version}: {e}")
+                        synced_files[domain][version] = f"Error: {str(e)}"
+            
+            return [types.TextContent(
+                type="text",
+                text=json.dumps({
+                    "success": True,
+                    "message": "Sync completed",
+                    "synced_files": synced_files,
+                    "timestamp": datetime.now().isoformat()
+                }, ensure_ascii=False, indent=2)
+            )]
+        
+        # ========== 数据管理工具 ==========
+        elif name == "clean_ministry_data":
+            # 执行数据清洗
+            dry_run = arguments.get("dry_run", False)
+            force = arguments.get("force", False)  # Note: force parameter not currently used by run()
+            
+            pipeline = CleaningPipeline(CONFIG_PATH)
+            exit_code = pipeline.run(dry_run=dry_run)
+            
+            return [types.TextContent(
+                type="text",
+                text=json.dumps({
+                    "success": exit_code == 0,
+                    "message": "Data cleaning completed successfully" if exit_code == 0 else "Data cleaning completed with errors",
+                    "exit_code": exit_code,
                     "timestamp": datetime.now().isoformat()
                 }, ensure_ascii=False, indent=2)
             )]
@@ -251,27 +543,44 @@ async def handle_call_tool(
             generate_all_years = arguments.get("generate_all_years", True)
             upload_to_bucket = arguments.get("upload_to_bucket", False)
             
-            manager = ServiceLayerManager(CONFIG_PATH)
+            # First, we need cleaned data
+            # Load from the clean_preview.json file if it exists
+            clean_data_path = Path("logs/clean_preview.json")
+            if not clean_data_path.exists():
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps({
+                        "success": False,
+                        "error": "No cleaned data found. Please run clean_ministry_data first.",
+                        "timestamp": datetime.now().isoformat()
+                    }, ensure_ascii=False, indent=2)
+                )]
             
+            import pandas as pd
+            clean_df = pd.read_json(clean_data_path)
+            
+            manager = ServiceLayerManager()
+            output_dir = Path("logs/service_layer")
+            
+            if generate_all_years:
+                saved_files = manager.generate_all_years(clean_df, output_dir, domains)
+            else:
+                saved_files = manager.generate_and_save(clean_df, output_dir, domains)
+            
+            # Convert Path objects to strings for JSON serialization
             results = {}
-            for domain in domains:
-                if domain == "sermon":
-                    results["sermon"] = manager.generate_sermon_domain(
-                        generate_all_years=generate_all_years,
-                        upload_to_bucket=upload_to_bucket
-                    )
-                elif domain == "volunteer":
-                    results["volunteer"] = manager.generate_volunteer_domain(
-                        generate_all_years=generate_all_years,
-                        upload_to_bucket=upload_to_bucket
-                    )
+            for key, value in saved_files.items():
+                if isinstance(value, dict):
+                    results[key] = {k: str(v) for k, v in value.items()}
+                else:
+                    results[key] = str(value)
             
             return [types.TextContent(
                 type="text",
                 text=json.dumps({
                     "success": True,
                     "message": f"Generated {len(domains)} domain(s)",
-                    "results": results,
+                    "files": results,
                     "timestamp": datetime.now().isoformat()
                 }, ensure_ascii=False, indent=2)
             )]
@@ -284,16 +593,24 @@ async def handle_call_tool(
             try:
                 # 创建清洗管线并运行验证
                 pipeline = CleaningPipeline(CONFIG_PATH)
-                result = pipeline.run(dry_run=True, force_clean=False)
+                exit_code = pipeline.run(dry_run=True)
+                
+                # Try to load the validation report from the most recent file
+                log_dir = Path('logs')
+                report_files = sorted(log_dir.glob('validation_report_*.txt'), reverse=True)
+                report_summary = "Check logs/validation_report_*.txt for details"
+                
+                if report_files:
+                    with open(report_files[0], 'r', encoding='utf-8') as f:
+                        report_summary = f.read()[:1000]  # First 1000 chars
                 
                 return [types.TextContent(
                     type="text",
                     text=json.dumps({
-                        "success": result.get("success", False),
+                        "success": exit_code == 0,
                         "message": "Data validation completed via dry-run",
-                        "total_rows": result.get("total_rows", 0),
-                        "errors": result.get("error_rows", 0),
-                        "warnings": result.get("warning_rows", 0),
+                        "exit_code": exit_code,
+                        "report_preview": report_summary,
                         "timestamp": datetime.now().isoformat()
                     }, ensure_ascii=False, indent=2)
                 )]
@@ -306,52 +623,6 @@ async def handle_call_tool(
                         "timestamp": datetime.now().isoformat()
                     }, ensure_ascii=False, indent=2)
                 )]
-        
-        elif name == "add_person_alias":
-            # 添加别名（需要手动编辑 Google Sheets 别名表）
-            alias = arguments.get("alias")
-            person_id = arguments.get("person_id")
-            display_name = arguments.get("display_name")
-            
-            if not all([alias, person_id, display_name]):
-                raise ValueError("Missing required parameters: alias, person_id, display_name")
-            
-            return [types.TextContent(
-                type="text",
-                text=json.dumps({
-                    "success": False,
-                    "message": "This feature requires manual implementation. Please add the alias to your Google Sheets alias table manually.",
-                    "instructions": {
-                        "alias": alias,
-                        "person_id": person_id,
-                        "display_name": display_name,
-                        "action": "Add these values to your 'Aliases' sheet in Google Sheets"
-                    },
-                    "timestamp": datetime.now().isoformat()
-                }, ensure_ascii=False, indent=2)
-            )]
-        
-        elif name == "get_pipeline_status":
-            # 获取管线状态
-            last_n_runs = arguments.get("last_n_runs", 10)
-            
-            # 读取状态日志
-            status_file = Path("logs/pipeline_status.json")
-            if status_file.exists():
-                with open(status_file, 'r', encoding='utf-8') as f:
-                    status_data = json.load(f)
-                    runs = status_data.get("runs", [])[-last_n_runs:]
-            else:
-                runs = []
-            
-            return [types.TextContent(
-                type="text",
-                text=json.dumps({
-                    "success": True,
-                    "runs": runs,
-                    "timestamp": datetime.now().isoformat()
-                }, ensure_ascii=False, indent=2)
-            )]
         
         else:
             raise ValueError(f"Unknown tool: {name}")
@@ -444,17 +715,20 @@ async def handle_read_resource(uri: str) -> str:
     """读取资源内容"""
     
     try:
+        # 将 URI 转换为字符串（MCP SDK 可能传递 AnyUrl 对象）
+        uri_str = str(uri)
+        
         # 解析 URI
-        if uri.startswith("ministry://sermon/records"):
+        if uri_str.startswith("ministry://sermon/records"):
             # 获取证道记录
-            year = uri.split("?year=")[1] if "?year=" in uri else None
+            year = uri_str.split("?year=")[1] if "?year=" in uri_str else None
             data = load_service_layer_data("sermon", year)
             return json.dumps(data, ensure_ascii=False, indent=2)
         
-        elif uri.startswith("ministry://sermon/by-preacher/"):
+        elif uri_str.startswith("ministry://sermon/by-preacher/"):
             # 按讲员查询
-            preacher_name = uri.split("/")[-1].split("?")[0]
-            year = uri.split("?year=")[1] if "?year=" in uri else None
+            preacher_name = uri_str.split("/")[-1].split("?")[0]
+            year = uri_str.split("?year=")[1] if "?year=" in uri_str else None
             
             data = load_service_layer_data("sermon", year)
             sermons = data.get("sermons", [])
@@ -467,7 +741,7 @@ async def handle_read_resource(uri: str) -> str:
                 "total_count": len(filtered)
             }, ensure_ascii=False, indent=2)
         
-        elif uri.startswith("ministry://sermon/series"):
+        elif uri_str.startswith("ministry://sermon/series"):
             # 获取系列信息
             data = load_service_layer_data("sermon")
             sermons = data.get("sermons", [])
@@ -494,10 +768,10 @@ async def handle_read_resource(uri: str) -> str:
                 "series": series_list
             }, ensure_ascii=False, indent=2)
         
-        elif uri.startswith("ministry://volunteer/assignments"):
+        elif uri_str.startswith("ministry://volunteer/assignments"):
             # 获取同工安排
-            date = uri.split("?date=")[1] if "?date=" in uri else None
-            year = uri.split("?year=")[1] if "?year=" in uri else None
+            date = uri_str.split("?date=")[1] if "?date=" in uri_str else None
+            year = uri_str.split("?year=")[1] if "?year=" in uri_str else None
             
             data = load_service_layer_data("volunteer", year)
             volunteers = data.get("volunteers", [])
@@ -511,10 +785,10 @@ async def handle_read_resource(uri: str) -> str:
                 "total_count": len(volunteers)
             }, ensure_ascii=False, indent=2)
         
-        elif uri.startswith("ministry://volunteer/by-person/"):
+        elif uri_str.startswith("ministry://volunteer/by-person/"):
             # 按人员查询
-            person_id = uri.split("/")[-1].split("?")[0]
-            year = uri.split("?year=")[1] if "?year=" in uri else None
+            person_id = uri_str.split("/")[-1].split("?")[0]
+            year = uri_str.split("?year=")[1] if "?year=" in uri_str else None
             
             data = load_service_layer_data("volunteer", year)
             volunteers = data.get("volunteers", [])
@@ -526,9 +800,9 @@ async def handle_read_resource(uri: str) -> str:
                 "total_count": len(person_records)
             }, ensure_ascii=False, indent=2)
         
-        elif uri.startswith("ministry://volunteer/availability/"):
+        elif uri_str.startswith("ministry://volunteer/availability/"):
             # 查询空缺
-            year_month = uri.split("/")[-1]
+            year_month = uri_str.split("/")[-1]
             
             data = load_service_layer_data("volunteer")
             volunteers = data.get("volunteers", [])
@@ -554,7 +828,7 @@ async def handle_read_resource(uri: str) -> str:
                 "total_gaps": len(gaps)
             }, ensure_ascii=False, indent=2)
         
-        elif uri == "ministry://stats/summary":
+        elif uri_str == "ministry://stats/summary":
             # 综合统计
             sermon_data = load_service_layer_data("sermon")
             volunteer_data = load_service_layer_data("volunteer")
@@ -564,9 +838,9 @@ async def handle_read_resource(uri: str) -> str:
                 "volunteer_stats": volunteer_data.get("metadata", {})
             }, ensure_ascii=False, indent=2)
         
-        elif uri == "ministry://stats/preachers":
+        elif uri_str == "ministry://stats/preachers" or uri_str.startswith("ministry://stats/preachers?"):
             # 讲员统计
-            year = uri.split("?year=")[1] if "?year=" in uri else None
+            year = uri_str.split("?year=")[1] if "?year=" in uri_str else None
             data = load_service_layer_data("sermon", year)
             sermons = data.get("sermons", [])
             
@@ -590,9 +864,9 @@ async def handle_read_resource(uri: str) -> str:
                 "preachers": list(preacher_map.values())
             }, ensure_ascii=False, indent=2)
         
-        elif uri == "ministry://stats/volunteers":
+        elif uri_str == "ministry://stats/volunteers" or uri_str.startswith("ministry://stats/volunteers?"):
             # 同工统计
-            year = uri.split("?year=")[1] if "?year=" in uri else None
+            year = uri_str.split("?year=")[1] if "?year=" in uri_str else None
             data = load_service_layer_data("volunteer", year)
             volunteers = data.get("volunteers", [])
             
@@ -617,7 +891,7 @@ async def handle_read_resource(uri: str) -> str:
                 "volunteers": list(person_map.values())
             }, ensure_ascii=False, indent=2)
         
-        elif uri == "ministry://config/aliases":
+        elif uri_str == "ministry://config/aliases":
             # 别名映射（从配置文件读取）
             try:
                 with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
@@ -638,10 +912,10 @@ async def handle_read_resource(uri: str) -> str:
                 }, ensure_ascii=False, indent=2)
         
         else:
-            return json.dumps({"error": f"Unknown resource URI: {uri}"})
+            return json.dumps({"error": f"Unknown resource URI: {uri_str}"})
     
     except Exception as e:
-        logger.error(f"Error reading resource {uri}: {e}")
+        logger.error(f"Error reading resource {uri_str}: {e}")
         return json.dumps({"error": str(e)})
 
 
