@@ -1,0 +1,73 @@
+# .gcloudignore - 控制哪些文件上传到 Cloud Build
+
+# Git
+.git/
+.github/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.tox/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docs (除了 README)
+CHANGELOG.md
+DEBUG_WORKFLOW.md
+MCP_INTEGRATION.md
+CLOUD_DEPLOYMENT.md
+CLOUD_QUICKSTART.md
+DEPLOYMENT_SUMMARY.md
+PROJECT_*.md
+QUICK_*.md
+QUICKSTART.md
+SETUP_AND_RUN.md
+TROUBLESHOOTING.md
+prompts/
+
+# Tests and samples
+tests/*.xlsx
+tests/*.xls
+tests/generated_aliases.csv
+tests/sample_*.csv
+
+# Logs (local)
+logs/*.log
+logs/*.csv
+logs/*.json
+logs/validation_report_*.txt
+
+# Temp files
+tmp/
+temp/
+*.log
+
+# macOS
+.DS_Store
+
+# Scripts we don't need in production
+deploy-cloud-run.sh
+setup-cloud-scheduler.sh
+test_api_*.sh
+run_test.sh
+verify_and_run.sh
+
+# Don't exclude these important files:
+!app.py
+!scripts/*.py
+!config/config.json
+!config/service-account.json
+!requirements.txt
+!Dockerfile
+!.dockerignore
+

@@ -35,9 +35,15 @@ class GSheetClient:
         if not os.path.exists(credentials_path):
             raise FileNotFoundError(f"凭证文件不存在: {credentials_path}")
         
-        self.credentials = service_account.Credentials.from_service_account_file(
-            credentials_path, scopes=self.SCOPES
-        )
+        if not os.path.isfile(credentials_path):
+            raise ValueError(f"凭证路径不是文件: {credentials_path}")
+        
+        try:
+            self.credentials = service_account.Credentials.from_service_account_file(
+                credentials_path, scopes=self.SCOPES
+            )
+        except Exception as e:
+            raise ValueError(f"无法加载凭证文件 {credentials_path}: {str(e)}")
         self.service = build('sheets', 'v4', credentials=self.credentials)
         self.sheets = self.service.spreadsheets()
     
