@@ -2,6 +2,25 @@
 
 一个可配置的数据清洗管线，用于将教会主日事工安排的原始 Google Sheet 数据进行清洗、标准化，并写入清洗层 Google Sheet。
 
+## 🎉 最新部署状态
+
+**✅ Cloud Run 部署成功！** (2025-10-07)
+
+- **服务 URL**: https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app
+- **API 文档**: https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app/docs
+- **状态**: 所有服务层功能已验证通过
+- **数据**: 已成功上传 8 个领域文件到 Cloud Storage
+- **详细报告**: [部署验证总结](部署验证总结.md) | [完整报告](DEPLOYMENT_REPORT.md)
+
+快速测试：
+```bash
+# 健康检查
+curl https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app/health
+
+# 查询 2024 年证道数据
+curl "https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app/api/v1/sermon?year=2024&limit=5"
+```
+
 ## 📚 文档导航
 
 | 文档 | 描述 | 适用人群 |
