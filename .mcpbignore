@@ -1,0 +1,78 @@
+# MCPB Bundle Ignore File
+# Files and directories to exclude from the bundle
+
+# Python Virtual Environment (IMPORTANT: exclude to reduce bundle size)
+.venv/
+venv/
+env/
+ENV/
+
+# Version control
+.git/
+.gitignore
+
+# Documentation (keep essential docs only)
+*.md
+!README.md
+docs/
+
+# Tests
+tests/
+test/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Logs (keep directory structure but not log files)
+logs/*.log
+logs/*.txt
+logs/*.csv
+logs/*.json
+!logs/.gitkeep
+
+# Deployment scripts (not needed in bundle)
+deploy*.sh
+test*.sh
+*.sh
+!run_*.sh
+
+# Cloud deployment files
+Dockerfile
+.dockerignore
+部署*.txt
+部署*.md
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Example and config files (users need to provide their own)
+config/service-account.json
+config/config.json
+.env
+.env.*
+
+# MCP HTTP server (only include stdio server)
+mcp_http_server.py
+
+# Examples
+examples/
+
+# Temporary files
+*.tmp
+temp/
+tmp/
+
