@@ -60,6 +60,24 @@
     "emit_csv_preview": "logs/clean_preview.csv",
     "emit_json_preview": "logs/clean_preview.json",
     "log_changes": true
+  },
+  "service_layer": {
+    "enabled": true,
+    "domains": ["sermon", "volunteer"],
+    "local_output_dir": "logs/service_layer",
+    "storage": {
+      "provider": "gcs",
+      "bucket": "grace-irvine-ministry-data",
+      "base_path": "domains/",
+      "service_account_file": "config/service-account.json",
+      "enable_versioning": true
+    },
+    "output_options": {
+      "latest_file": true,
+      "yearly_files": true,
+      "quarterly_files": false,
+      "monthly_files": false
+    }
   }
 }
 

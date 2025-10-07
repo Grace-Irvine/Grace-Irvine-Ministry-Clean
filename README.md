@@ -8,15 +8,15 @@
 |-----|------|----------|
 | [README.md](README.md)（本文档） | 完整用户指南和技术文档 | 所有用户 |
 | [QUICKSTART.md](QUICKSTART.md) | ⚡ 5 分钟快速上手指南 | 新用户 |
-| [CLOUD_QUICKSTART.md](CLOUD_QUICKSTART.md) | ☁️ 云部署快速指南 | **云部署人员** |
-| [CLOUD_DEPLOYMENT.md](CLOUD_DEPLOYMENT.md) | 🚀 Google Cloud Run 完整部署文档 | **云部署人员** |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | ☁️ 云部署完整指南（Cloud Run + Scheduler） | **云部署人员** |
+| [SERVICE_LAYER.md](SERVICE_LAYER.md) | 📦 服务层架构和使用指南 | **开发者** |
+| [STORAGE.md](STORAGE.md) | 💾 Cloud Storage 和数据管理 | **数据管理员** |
 | [MCP_INTEGRATION.md](MCP_INTEGRATION.md) | 🤖 MCP (Model Context Protocol) 集成指南 | **API 使用者** |
-| [QUICK_DEBUG_GUIDE.md](QUICK_DEBUG_GUIDE.md) | 🔧 本地调试快速指南 | **调试人员** |
-| [DEBUG_WORKFLOW.md](DEBUG_WORKFLOW.md) | 🛠️ 完整调试工作流程 | **调试人员** |
-| [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md) | 📦 项目交付总结 | 项目管理者 |
-| [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) | 🏗️ 项目架构和设计 | 开发者 |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | 🔧 故障排除指南 | **所有用户** |
+| [QUICK_COMMANDS.md](QUICK_COMMANDS.md) | 🚀 常用命令速查 | **运维人员** |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 🏗️ 项目架构和设计 | **开发者** |
 | [CHANGELOG.md](CHANGELOG.md) | 📝 版本历史 | 所有用户 |
-| [prompts/README_prompt.md](prompts/README_prompt.md) | 📋 详细任务说明 | 开发者 |
+| [README_prompt.md](README_prompt.md) | 📋 详细任务说明 | 开发者 |
 
 ## 📋 目录
 
@@ -32,6 +32,7 @@
 
 ## ✨ 特性
 
+### 核心清洗功能
 - **可配置的清洗规则**：通过 JSON 配置文件管理所有清洗规则
 - **人名别名映射**：支持将多个别名（中文名、英文名、昵称）映射到统一的人员 ID
 - **多种日期格式支持**：自动识别并标准化多种日期格式
@@ -39,20 +40,45 @@
 - **歌曲拆分与去重**：支持多种分隔符，自动去重
 - **数据校验**：生成详细的错误和警告报告
 - **Dry-run 模式**：可先预览清洗结果，不写回 Google Sheet
+
+### 服务层（v2.0新增）
+- **📦 领域模型**：Sermon Domain（证道域）+ Volunteer Domain（同工域）
+- **🔄 多年份支持**：自动生成所有历史年份数据（2024-2026）
+- **💾 Cloud Storage**：自动上传到 Google Cloud Storage
+- **📁 智能组织**：按领域和年份组织文件（latest + yearly）
+
+### 云端部署（v2.0新增）
+- **☁️ Cloud Run 部署**：一键部署到 Google Cloud Run
+- **⏰ 智能定时任务**：每30分钟自动检测并更新（仅在数据变化时执行）
+- **🔍 变化检测**：SHA-256哈希比对，无变化时< 1秒返回
+- **🚀 RESTful API**：完整的数据查询和管理接口
+- **🤖 MCP 兼容**：支持 AI 助手集成和查询
+- **🔒 安全认证**：Bearer Token 保护定时触发端点
+- **📊 实时统计**：动态数据统计和分析
+
+### 技术亮点
 - **详细日志**：记录所有操作和问题
-- **☁️ 云部署支持**：一键部署到 Google Cloud Run
-- **⏰ 定时任务**：通过 Cloud Scheduler 自动执行
-- **🤖 MCP 兼容 API**：支持 AI 助手集成和查询
+- **💰 成本友好**：基本在 Google Cloud 免费额度内（~$0.57/月）
+- **⚡ 高性能**：智能跳过、并行处理、增量更新
 
 ## 🚀 快速开始
 
 ### 部署方式选择
 
-#### 方式 1：云端部署（推荐）
+#### 方式 1：云端部署（推荐）✨
 
 如果你想要定时自动运行并提供 API 访问：
 
-👉 **查看 [云部署快速指南](CLOUD_QUICKSTART.md)**
+👉 **查看 [云部署完整指南](DEPLOYMENT.md)**
+
+**特点：**
+- ☁️ 自动部署到 Google Cloud Run
+- ⏰ 每30分钟智能检测和更新
+- 🔍 变化检测（无变化时秒级返回）
+- 🚀 RESTful API + MCP 支持
+- 💰 成本低（~$0.57/月）
+
+**部署时间：** 约10分钟
 
 #### 方式 2：本地运行
 
