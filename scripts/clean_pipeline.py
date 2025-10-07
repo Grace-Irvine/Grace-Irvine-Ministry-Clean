@@ -23,6 +23,7 @@ from scripts.gsheet_utils import GSheetClient
 from scripts.alias_utils import AliasMapper
 from scripts.cleaning_rules import CleaningRules
 from scripts.validators import DataValidator
+from scripts.service_layer import ServiceLayerManager
 
 
 # 配置日志
@@ -326,6 +327,77 @@ class CleaningPipeline:
         else:
             logger.info("干跑模式：跳过写入 Google Sheet")
     
+    def generate_service_layer(self, df: pd.DataFrame) -> Dict[str, Dict[str, Path]]:
+        """
+        生成服务层数据（包括所有年份）
+        
+        Args:
+            df: 清洗后的 DataFrame
+            
+        Returns:
+            按年份保存的文件路径字典
+        """
+        service_layer_config = self.config.get('service_layer', {})
+        
+        if not service_layer_config.get('enabled', False):
+            logger.info("服务层未启用，跳过")
+            return {}
+        
+        logger.info("开始生成服务层数据（所有年份）...")
+        
+        # 初始化服务层管理器
+        manager = ServiceLayerManager()
+        
+        # 获取配置
+        domains = service_layer_config.get('domains', ['sermon', 'volunteer'])
+        output_dir = Path(service_layer_config.get('local_output_dir', 'logs/service_layer'))
+        
+        # 生成所有年份的数据
+        saved_files = manager.generate_all_years(df, output_dir, domains)
+        
+        # 如果配置了 Cloud Storage，上传到 bucket
+        storage_config = service_layer_config.get('storage', {})
+        if storage_config.get('provider') == 'gcs' and storage_config.get('bucket'):
+            try:
+                from scripts.cloud_storage_utils import DomainStorageManager
+                
+                bucket_name = storage_config['bucket']
+                base_path = storage_config.get('base_path', 'domains/')
+                service_account_file = storage_config.get('service_account_file')
+                
+                logger.info(f"上传服务层数据到 Cloud Storage: gs://{bucket_name}/{base_path}")
+                
+                storage_manager = DomainStorageManager(
+                    bucket_name=bucket_name,
+                    service_account_file=service_account_file,
+                    base_path=base_path
+                )
+                
+                # 上传所有年份的数据
+                for year, year_files in saved_files.items():
+                    logger.info(f"上传 {year} 数据...")
+                    for domain, file_path in year_files.items():
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            domain_data = json.load(f)
+                        
+                        # 根据是否为 latest 决定上传路径
+                        if year == 'latest':
+                            uploaded = storage_manager.upload_domain_data(domain, domain_data)
+                        else:
+                            # 上传年份文件
+                            yearly_path = f"{domain}/{year}/{domain}_{year}.json"
+                            gs_path = storage_manager.gcs_client.upload_json(domain_data, yearly_path)
+                            uploaded = {f'yearly_{year}': gs_path}
+                        
+                        logger.info(f"  已上传 {domain} ({year}): {uploaded}")
+                
+            except ImportError:
+                logger.warning("google-cloud-storage 未安装，跳过云存储上传")
+            except Exception as e:
+                logger.error(f"上传到 Cloud Storage 失败: {e}")
+        
+        return saved_files
+    
     def run(self, dry_run: bool = False) -> int:
         """
         运行完整的清洗管线
@@ -349,12 +421,22 @@ class CleaningPipeline:
             # 4. 输出结果
             self.write_output(clean_df, dry_run=dry_run)
             
-            # 5. 打印摘要
+            # 5. 生成服务层数据
+            service_files = self.generate_service_layer(clean_df)
+            
+            # 6. 打印摘要
             print("\n" + "=" * 60)
             print(report.format_report(max_issues=5))
             print("=" * 60)
             
-            # 6. 保存详细报告到日志
+            if service_files:
+                print("\n服务层数据生成:")
+                for year, year_files in service_files.items():
+                    print(f"  {year}:")
+                    for domain, file_path in year_files.items():
+                        print(f"    {domain.upper()}: {file_path}")
+            
+            # 7. 保存详细报告到日志
             log_dir = Path('logs')
             log_dir.mkdir(exist_ok=True)
             

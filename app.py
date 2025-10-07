@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from scripts.clean_pipeline import CleaningPipeline
 from scripts.change_detector import ChangeDetector
+from scripts.service_layer import ServiceLayerManager
 
 # 配置日志
 logging.basicConfig(
@@ -83,6 +84,26 @@ class DataQueryRequest(BaseModel):
     date_to: Optional[str] = None
     preacher: Optional[str] = None
     limit: int = 100
+
+
+class ServiceLayerRequest(BaseModel):
+    """服务层生成请求"""
+    domains: Optional[List[str]] = None
+    force: bool = False
+    upload_to_bucket: bool = False
+    generate_all_years: bool = True  # 默认生成所有年份
+
+
+class ServiceLayerResponse(BaseModel):
+    """服务层生成响应"""
+    success: bool
+    message: str
+    domains_generated: List[str]
+    years_generated: List[str]
+    files_saved: Dict[str, Dict[str, str]]  # {year: {domain: path}}
+    record_counts: Dict[str, Dict[str, int]]  # {year: {domain: count}}
+    uploaded_to_bucket: bool = False
+    timestamp: str
 
 
 # ============================================================
@@ -409,6 +430,256 @@ async def get_statistics():
         raise HTTPException(
             status_code=500,
             detail=f"获取统计信息失败: {str(e)}"
+        )
+
+
+# ============================================================
+# 服务层端点
+# ============================================================
+
+@app.post("/api/v1/service-layer/generate", response_model=ServiceLayerResponse)
+async def generate_service_layer(request: ServiceLayerRequest):
+    """
+    生成服务层数据（sermon 和 volunteer 域）
+    支持生成所有年份的数据
+    """
+    try:
+        # 读取清洗后的数据
+        preview_path = Path('logs/clean_preview.json')
+        
+        if not preview_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail="清洗层数据不存在，请先运行清洗任务"
+            )
+        
+        logger.info(f"读取清洗层数据: {preview_path}")
+        with open(preview_path, 'r', encoding='utf-8') as f:
+            clean_data = json.load(f)
+        
+        clean_df = pd.DataFrame(clean_data)
+        
+        # 初始化服务层管理器
+        manager = ServiceLayerManager()
+        
+        # 确定要生成的域
+        domains = request.domains or ['sermon', 'volunteer']
+        
+        # 输出目录
+        output_dir = Path('logs/service_layer')
+        
+        # 根据参数决定生成方式
+        if request.generate_all_years:
+            # 生成所有年份
+            logger.info(f"生成所有年份的服务层数据: {domains}")
+            all_saved_files = manager.generate_all_years(clean_df, output_dir, domains)
+            
+            # 整理返回数据
+            files_saved = {}
+            record_counts = {}
+            years_generated = []
+            
+            for year, year_files in all_saved_files.items():
+                years_generated.append(year)
+                files_saved[year] = {}
+                record_counts[year] = {}
+                
+                for domain, file_path in year_files.items():
+                    files_saved[year][domain] = str(file_path)
+                    
+                    # 读取记录数
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        domain_data = json.load(f)
+                    record_counts[year][domain] = domain_data['metadata']['record_count']
+        else:
+            # 只生成 latest
+            logger.info(f"生成服务层数据: {domains}")
+            domain_data_dict = manager.generate_domain_data(clean_df, domains)
+            
+            files_saved = {'latest': {}}
+            record_counts = {'latest': {}}
+            years_generated = ['latest']
+            
+            for domain, domain_data in domain_data_dict.items():
+                file_path = manager.save_domain_data(domain_data, output_dir, domain)
+                files_saved['latest'][domain] = str(file_path)
+                record_counts['latest'][domain] = domain_data['metadata']['record_count']
+        
+        # 如果请求上传到 bucket
+        uploaded_to_bucket = False
+        if request.upload_to_bucket:
+            try:
+                # 读取配置
+                with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                
+                storage_config = config.get('service_layer', {}).get('storage', {})
+                
+                if storage_config.get('provider') == 'gcs':
+                    from scripts.cloud_storage_utils import DomainStorageManager
+                    
+                    bucket_name = storage_config['bucket']
+                    base_path = storage_config.get('base_path', 'domains/')
+                    service_account_file = storage_config.get('service_account_file')
+                    
+                    logger.info(f"上传到 Cloud Storage: gs://{bucket_name}/{base_path}")
+                    
+                    storage_manager = DomainStorageManager(
+                        bucket_name=bucket_name,
+                        service_account_file=service_account_file,
+                        base_path=base_path
+                    )
+                    
+                    # 上传所有年份的数据
+                    for year, year_files in files_saved.items():
+                        logger.info(f"上传 {year} 数据...")
+                        for domain, file_path in year_files.items():
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                domain_data = json.load(f)
+                            
+                            # 根据是否为 latest 决定上传路径
+                            if year == 'latest':
+                                uploaded = storage_manager.upload_domain_data(domain, domain_data)
+                            else:
+                                # 上传年份文件
+                                yearly_path = f"{domain}/{year}/{domain}_{year}.json"
+                                gs_path = storage_manager.gcs_client.upload_json(domain_data, yearly_path)
+                                uploaded = {f'yearly_{year}': gs_path}
+                            
+                            logger.info(f"  已上传 {domain} ({year}): {uploaded}")
+                    
+                    uploaded_to_bucket = True
+                else:
+                    logger.warning("Cloud Storage 未配置，跳过上传")
+            
+            except ImportError:
+                logger.warning("google-cloud-storage 未安装，跳过上传")
+            except Exception as e:
+                logger.error(f"上传到 Cloud Storage 失败: {e}")
+        
+        return ServiceLayerResponse(
+            success=True,
+            message=f"成功生成 {len(domains)} 个领域 × {len(years_generated)} 个年份的数据",
+            domains_generated=domains,
+            years_generated=years_generated,
+            files_saved=files_saved,
+            record_counts=record_counts,
+            uploaded_to_bucket=uploaded_to_bucket,
+            timestamp=datetime.utcnow().isoformat() + 'Z'
+        )
+    
+    except Exception as e:
+        logger.error(f"生成服务层数据失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"生成服务层数据失败: {str(e)}"
+        )
+
+
+@app.get("/api/v1/sermon")
+async def get_sermon_data(
+    year: Optional[int] = None,
+    limit: int = 100,
+    offset: int = 0
+):
+    """
+    获取证道域数据
+    """
+    try:
+        sermon_file = Path('logs/service_layer/sermon.json')
+        
+        if not sermon_file.exists():
+            raise HTTPException(
+                status_code=404,
+                detail="证道域数据不存在，请先生成服务层数据"
+            )
+        
+        with open(sermon_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        sermons = data['sermons']
+        
+        # 按年份筛选
+        if year:
+            sermons = [s for s in sermons if s['service_date'].startswith(str(year))]
+        
+        # 分页
+        total = len(sermons)
+        sermons = sermons[offset:offset + limit]
+        
+        return {
+            'metadata': {
+                'domain': 'sermon',
+                'version': data['metadata']['version'],
+                'total_count': total,
+                'returned_count': len(sermons),
+                'offset': offset,
+                'limit': limit
+            },
+            'sermons': sermons
+        }
+    
+    except Exception as e:
+        logger.error(f"获取证道数据失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取证道数据失败: {str(e)}"
+        )
+
+
+@app.get("/api/v1/volunteer")
+async def get_volunteer_data(
+    year: Optional[int] = None,
+    service_date: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0
+):
+    """
+    获取同工域数据
+    """
+    try:
+        volunteer_file = Path('logs/service_layer/volunteer.json')
+        
+        if not volunteer_file.exists():
+            raise HTTPException(
+                status_code=404,
+                detail="同工域数据不存在，请先生成服务层数据"
+            )
+        
+        with open(volunteer_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        volunteers = data['volunteers']
+        
+        # 按年份筛选
+        if year:
+            volunteers = [v for v in volunteers if v['service_date'].startswith(str(year))]
+        
+        # 按日期筛选
+        if service_date:
+            volunteers = [v for v in volunteers if v['service_date'] == service_date]
+        
+        # 分页
+        total = len(volunteers)
+        volunteers = volunteers[offset:offset + limit]
+        
+        return {
+            'metadata': {
+                'domain': 'volunteer',
+                'version': data['metadata']['version'],
+                'total_count': total,
+                'returned_count': len(volunteers),
+                'offset': offset,
+                'limit': limit
+            },
+            'volunteers': volunteers
+        }
+    
+    except Exception as e:
+        logger.error(f"获取同工数据失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取同工数据失败: {str(e)}"
         )
 
 

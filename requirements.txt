@@ -12,3 +12,7 @@ uvicorn[standard]>=0.27.0
 pydantic>=2.5.0
 python-multipart>=0.0.6
 
+# Cloud Storage (optional, for service layer)
+# Uncomment if you need to upload domain data to GCS
+google-cloud-storage>=2.10.0
+
