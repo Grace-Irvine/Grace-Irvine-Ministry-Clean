@@ -8,6 +8,9 @@
 |-----|------|----------|
 | [README.md](README.md)（本文档） | 完整用户指南和技术文档 | 所有用户 |
 | [QUICKSTART.md](QUICKSTART.md) | ⚡ 5 分钟快速上手指南 | 新用户 |
+| [CLOUD_QUICKSTART.md](CLOUD_QUICKSTART.md) | ☁️ 云部署快速指南 | **云部署人员** |
+| [CLOUD_DEPLOYMENT.md](CLOUD_DEPLOYMENT.md) | 🚀 Google Cloud Run 完整部署文档 | **云部署人员** |
+| [MCP_INTEGRATION.md](MCP_INTEGRATION.md) | 🤖 MCP (Model Context Protocol) 集成指南 | **API 使用者** |
 | [QUICK_DEBUG_GUIDE.md](QUICK_DEBUG_GUIDE.md) | 🔧 本地调试快速指南 | **调试人员** |
 | [DEBUG_WORKFLOW.md](DEBUG_WORKFLOW.md) | 🛠️ 完整调试工作流程 | **调试人员** |
 | [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md) | 📦 项目交付总结 | 项目管理者 |
@@ -37,8 +40,21 @@
 - **数据校验**：生成详细的错误和警告报告
 - **Dry-run 模式**：可先预览清洗结果，不写回 Google Sheet
 - **详细日志**：记录所有操作和问题
+- **☁️ 云部署支持**：一键部署到 Google Cloud Run
+- **⏰ 定时任务**：通过 Cloud Scheduler 自动执行
+- **🤖 MCP 兼容 API**：支持 AI 助手集成和查询
 
 ## 🚀 快速开始
+
+### 部署方式选择
+
+#### 方式 1：云端部署（推荐）
+
+如果你想要定时自动运行并提供 API 访问：
+
+👉 **查看 [云部署快速指南](CLOUD_QUICKSTART.md)**
+
+#### 方式 2：本地运行
 
 ### 1. 安装依赖
 
