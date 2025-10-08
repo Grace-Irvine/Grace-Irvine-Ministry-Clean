@@ -23,8 +23,8 @@ import uvicorn
 # 添加项目路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-# 导入 MCP Server
-from mcp_server import server as mcp_server
+# 导入 MCP Server 处理函数
+import mcp_server
 
 # 配置日志
 logging.basicConfig(
@@ -113,7 +113,7 @@ async def handle_mcp_request(request: MCPRequest) -> MCPResponse:
         
         # 路由到对应的 MCP Server 处理器
         if method == "tools/list":
-            result = await mcp_server._tool_manager.list_tools()
+            result = await mcp_server.handle_list_tools()
             return MCPResponse(
                 id=request.id,
                 result={"tools": [tool.model_dump() for tool in result]}
@@ -122,14 +122,14 @@ async def handle_mcp_request(request: MCPRequest) -> MCPResponse:
         elif method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments", {})
-            result = await mcp_server._tool_manager.call_tool(name, arguments)
+            result = await mcp_server.handle_call_tool(name, arguments)
             return MCPResponse(
                 id=request.id,
                 result={"content": [item.model_dump() for item in result]}
             )
         
         elif method == "resources/list":
-            result = await mcp_server._resource_manager.list_resources()
+            result = await mcp_server.handle_list_resources()
             return MCPResponse(
                 id=request.id,
                 result={"resources": [res.model_dump() for res in result]}
@@ -137,14 +137,14 @@ async def handle_mcp_request(request: MCPRequest) -> MCPResponse:
         
         elif method == "resources/read":
             uri = params.get("uri")
-            result = await mcp_server._resource_manager.read_resource(uri)
+            result = await mcp_server.handle_read_resource(uri)
             return MCPResponse(
                 id=request.id,
                 result={"contents": [{"uri": uri, "mimeType": "application/json", "text": result}]}
             )
         
         elif method == "prompts/list":
-            result = await mcp_server._prompt_manager.list_prompts()
+            result = await mcp_server.handle_list_prompts()
             return MCPResponse(
                 id=request.id,
                 result={"prompts": [prompt.model_dump() for prompt in result]}
@@ -153,7 +153,7 @@ async def handle_mcp_request(request: MCPRequest) -> MCPResponse:
         elif method == "prompts/get":
             name = params.get("name")
             arguments = params.get("arguments", {})
-            result = await mcp_server._prompt_manager.get_prompt(name, arguments)
+            result = await mcp_server.handle_get_prompt(name, arguments)
             return MCPResponse(
                 id=request.id,
                 result=result.model_dump()

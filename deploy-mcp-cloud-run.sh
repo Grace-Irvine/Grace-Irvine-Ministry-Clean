@@ -99,15 +99,27 @@ DEPLOY_CMD="gcloud run deploy $SERVICE_NAME \
     --set-env-vars MCP_MODE=http,MCP_REQUIRE_AUTH=true \
     --allow-unauthenticated"
 
+# 构建 secrets 列表
+SECRETS_LIST=""
+
 # 添加 Bearer Token（如果设置）
 if [ -n "$MCP_BEARER_TOKEN" ]; then
-    DEPLOY_CMD="$DEPLOY_CMD --set-secrets MCP_BEARER_TOKEN=mcp-bearer-token:latest"
+    SECRETS_LIST="MCP_BEARER_TOKEN=mcp-bearer-token:latest"
 fi
 
 # 添加 service account secret（如果存在）
 if gcloud secrets describe ministry-service-account --project=$GCP_PROJECT_ID &> /dev/null; then
-    DEPLOY_CMD="$DEPLOY_CMD --update-secrets /app/config/service-account.json=ministry-service-account:latest"
+    if [ -n "$SECRETS_LIST" ]; then
+        SECRETS_LIST="$SECRETS_LIST,/app/config/service-account.json=ministry-service-account:latest"
+    else
+        SECRETS_LIST="/app/config/service-account.json=ministry-service-account:latest"
+    fi
     echo "  Using existing ministry-service-account secret"
+fi
+
+# 添加所有 secrets（如果有）
+if [ -n "$SECRETS_LIST" ]; then
+    DEPLOY_CMD="$DEPLOY_CMD --update-secrets $SECRETS_LIST"
 fi
 
 # 执行部署
