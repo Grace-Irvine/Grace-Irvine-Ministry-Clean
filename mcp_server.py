@@ -163,6 +163,99 @@ def get_person_records(records: List[Dict], person_identifier: str) -> List[Dict
     return result
 
 
+def format_volunteer_record(record: Dict) -> str:
+    """格式化单条同工服侍记录为可读文本"""
+    lines = [f"📅 服侍日期: {record.get('service_date', 'N/A')}"]
+    
+    # 处理敬拜团队
+    worship = record.get('worship', {})
+    if worship:
+        lines.append("\n🎵 敬拜团队:")
+        
+        # 敬拜主领
+        lead = worship.get('lead', {})
+        if lead and lead.get('name'):
+            lines.append(f"  • 敬拜主领: {lead['name']}")
+        
+        # 敬拜同工
+        team = worship.get('team', [])
+        if team:
+            names = [member.get('name', 'N/A') for member in team if isinstance(member, dict)]
+            if names:
+                lines.append(f"  • 敬拜同工: {', '.join(names)}")
+        
+        # 司琴
+        pianist = worship.get('pianist', {})
+        if pianist and pianist.get('name'):
+            lines.append(f"  • 司琴: {pianist['name']}")
+    
+    # 处理技术团队
+    technical = record.get('technical', {})
+    if technical:
+        lines.append("\n🔧 技术团队:")
+        
+        # 音控
+        audio = technical.get('audio', {})
+        if audio and audio.get('name'):
+            lines.append(f"  • 音控: {audio['name']}")
+        
+        # 导播/摄影
+        video = technical.get('video', {})
+        if video and video.get('name'):
+            lines.append(f"  • 导播/摄影: {video['name']}")
+        
+        # ProPresenter播放
+        propresenter_play = technical.get('propresenter_play', {})
+        if propresenter_play and propresenter_play.get('name'):
+            lines.append(f"  • ProPresenter播放: {propresenter_play['name']}")
+        
+        # ProPresenter更新
+        propresenter_update = technical.get('propresenter_update', {})
+        if propresenter_update and propresenter_update.get('name'):
+            lines.append(f"  • ProPresenter更新: {propresenter_update['name']}")
+    
+    # 处理其他字段（如果存在）
+    for key, value in record.items():
+        if key in ['service_date', 'service_week', 'service_slot', 'worship', 'technical', 'source_row', 'updated_at']:
+            continue
+        
+        if isinstance(value, dict) and value.get('name'):
+            lines.append(f"  • {key}: {value['name']}")
+        elif isinstance(value, list) and value:
+            names = [item.get('name', 'N/A') for item in value if isinstance(item, dict)]
+            if names:
+                lines.append(f"  • {key}: {', '.join(names)}")
+    
+    return '\n'.join(lines)
+
+
+def format_sermon_record(record: Dict) -> str:
+    """格式化单条证道记录为可读文本"""
+    lines = [f"📅 服侍日期: {record.get('service_date', 'N/A')}"]
+    
+    # 讲员信息
+    preacher = record.get('preacher', {})
+    if isinstance(preacher, dict):
+        lines.append(f"  🎤 讲员: {preacher.get('name', 'N/A')}")
+    
+    # 证道信息
+    sermon = record.get('sermon', {})
+    if isinstance(sermon, dict):
+        if sermon.get('series'):
+            lines.append(f"  📚 系列: {sermon['series']}")
+        if sermon.get('title'):
+            lines.append(f"  📖 标题: {sermon['title']}")
+        if sermon.get('scripture'):
+            lines.append(f"  📜 经文: {sermon['scripture']}")
+    
+    # 诗歌
+    songs = record.get('songs', [])
+    if songs and isinstance(songs, list):
+        lines.append(f"  🎵 诗歌: {', '.join(songs)}")
+    
+    return '\n'.join(lines)
+
+
 # ============================================================
 # MCP Server 实例
 # ============================================================
@@ -285,9 +378,19 @@ async def handle_call_tool(
             volunteers = data.get("volunteers", [])
             result = [v for v in volunteers if v.get("service_date", "").startswith(date)]
             
+            # 格式化文本输出
+            if result:
+                text_lines = [f"✅ 找到 {len(result)} 条同工服侍记录（{date}）\n"]
+                for i, record in enumerate(result, 1):
+                    text_lines.append(f"\n记录 {i}:")
+                    text_lines.append(format_volunteer_record(record))
+                formatted_text = '\n'.join(text_lines)
+            else:
+                formatted_text = f"❌ 未找到 {date} 的同工服侍记录"
+            
             return [types.TextContent(
                 type="text",
-                text=f"找到 {len(result)} 条同工服侍记录（{date}）",
+                text=formatted_text,
                 structuredContent={
                     "success": True,
                     "date": date,
@@ -317,9 +420,19 @@ async def handle_call_tool(
             sermons = data.get("sermons", [])
             result = [s for s in sermons if s.get("service_date", "").startswith(date)]
             
+            # 格式化文本输出
+            if result:
+                text_lines = [f"✅ 找到 {len(result)} 条证道记录（{date}）\n"]
+                for i, record in enumerate(result, 1):
+                    text_lines.append(f"\n记录 {i}:")
+                    text_lines.append(format_sermon_record(record))
+                formatted_text = '\n'.join(text_lines)
+            else:
+                formatted_text = f"❌ 未找到 {date} 的证道记录"
+            
             return [types.TextContent(
                 type="text",
-                text=f"找到 {len(result)} 条证道记录（{date}）",
+                text=formatted_text,
                 structuredContent={
                     "success": True,
                     "date": date,
@@ -335,6 +448,7 @@ async def handle_call_tool(
             
             results = {}
             total_count = 0
+            text_lines = [f"✅ 查询范围: {start_date} 至 {end_date}\n"]
             
             # 查询 volunteer
             if domain in ["volunteer", "both"]:
@@ -350,6 +464,11 @@ async def handle_call_tool(
                         "records": filtered
                     }
                     total_count += len(filtered)
+                    
+                    text_lines.append(f"\n📊 同工服侍记录: {len(filtered)} 条")
+                    for i, record in enumerate(filtered, 1):
+                        text_lines.append(f"\n  记录 {i}:")
+                        text_lines.append("  " + format_volunteer_record(record).replace("\n", "\n  "))
             
             # 查询 sermon
             if domain in ["sermon", "both"]:
@@ -365,10 +484,18 @@ async def handle_call_tool(
                         "records": filtered
                     }
                     total_count += len(filtered)
+                    
+                    text_lines.append(f"\n\n📖 证道记录: {len(filtered)} 条")
+                    for i, record in enumerate(filtered, 1):
+                        text_lines.append(f"\n  记录 {i}:")
+                        text_lines.append("  " + format_sermon_record(record).replace("\n", "\n  "))
+            
+            text_lines.append(f"\n\n📈 总计: {total_count} 条记录")
+            formatted_text = '\n'.join(text_lines)
             
             return [types.TextContent(
                 type="text",
-                text=f"找到 {total_count} 条记录（{start_date} 至 {end_date}）",
+                text=formatted_text,
                 structuredContent={
                     "success": True,
                     "start_date": start_date,
