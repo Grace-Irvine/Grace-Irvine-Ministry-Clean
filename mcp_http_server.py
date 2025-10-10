@@ -252,6 +252,28 @@ async def get_capabilities(authorized: bool = Depends(verify_bearer_token)):
     }
 
 
+@app.get("/mcp")
+async def mcp_get_endpoint():
+    """MCP 端点 - GET 方法用于验证和发现"""
+    return {
+        "name": "ministry-data",
+        "version": "2.0.0",
+        "protocol": "MCP",
+        "transport": "HTTP/SSE",
+        "description": "Church Ministry Data Management MCP Server",
+        "capabilities": {
+            "tools": True,
+            "resources": True,
+            "prompts": True
+        },
+        "endpoints": {
+            "tools": "/mcp/tools",
+            "resources": "/mcp/resources",
+            "prompts": "/mcp/prompts"
+        }
+    }
+
+
 @app.post("/mcp")
 async def mcp_endpoint(
     request: MCPRequest,
