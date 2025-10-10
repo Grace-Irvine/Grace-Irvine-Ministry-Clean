@@ -40,3 +40,6 @@ t=2025-10-10T13:53:13-0700 lvl=eror msg="heartbeat timeout, terminating session"
 t=2025-10-10T13:53:13-0700 lvl=eror msg="session closed, starting reconnect loop" obj=tunnels.session obj=csess id=b774ec8022f7 err="session closed"
 t=2025-10-10T13:53:13-0700 lvl=info msg="client session established" obj=tunnels.session
 t=2025-10-10T13:53:13-0700 lvl=info msg="tunnel session started" obj=tunnels.session
+t=2025-10-10T15:41:37-0700 lvl=info msg="received stop request" obj=app stopReq="{err:<nil> restart:false}"
+t=2025-10-10T15:41:37-0700 lvl=info msg="session closing" obj=tunnels.session err=nil
+t=2025-10-10T15:41:37-0700 lvl=info msg="accept failed" obj=tunnels.session obj=csess id=b774ec8022f7 err="reconnecting session closed"
