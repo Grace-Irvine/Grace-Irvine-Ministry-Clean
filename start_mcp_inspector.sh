@@ -18,5 +18,5 @@ echo "=========================================="
 cd "$(dirname "$0")"
 
 # Run MCP Inspector with the stdio server
-npx @modelcontextprotocol/inspector python3 mcp_server.py
+npx @modelcontextprotocol/inspector python3 mcp_local/mcp_server.py
 
