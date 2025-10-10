@@ -89,6 +89,30 @@ if STORAGE_CONFIG.get('provider') == 'gcs':
 # 辅助函数
 # ============================================================
 
+def get_role_display_name(role: str) -> str:
+    """
+    获取角色的中文显示名称
+    """
+    # 角色名称映射表 - 显示具体的岗位名称
+    role_mapping = {
+        'worship_lead': '敬拜主领',
+        'worship_team_1': '敬拜同工1',
+        'worship_team_2': '敬拜同工2',
+        'worship_team': '敬拜同工',
+        'pianist': '司琴',
+        'audio': '音控',
+        'video': '导播/摄影',
+        'propresenter_play': 'ProPresenter播放',
+        'propresenter_update': 'ProPresenter更新',
+        'assistant': '助教',
+        'preacher': '讲员',
+        'reading': '读经',
+        'worship': '敬拜',
+        'technical': '技术'
+    }
+    
+    return role_mapping.get(role, role)
+
 def load_service_layer_data(domain: str, year: Optional[str] = None) -> Dict[str, Any]:
     """
     加载服务层数据
@@ -550,6 +574,10 @@ def analyze_preacher_pattern(sermons: List[Dict]) -> Dict[str, Any]:
         preacher_name = sermon.get('preacher', {}).get('name', 'Unknown')
         service_date = sermon.get('service_date', '')
         
+        # 过滤掉空名称或只包含空格的名称
+        if not preacher_name or not preacher_name.strip():
+            continue
+            
         if preacher_name not in preacher_map:
             preacher_map[preacher_name] = []
         preacher_map[preacher_name].append(service_date)
@@ -782,13 +810,13 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="generate_weekly_preview",
-            description="生成指定日期的主日预览报告（证道信息+同工安排）",
+            description="生成指定日期的主日预览报告（证道信息+同工安排），默认生成下一个周日",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "date": {
                         "type": "string",
-                        "description": "日期（格式：YYYY-MM-DD）"
+                        "description": "日期（格式：YYYY-MM-DD），可选，默认自动生成下一个周日"
                     },
                     "format": {
                         "type": "string",
@@ -802,7 +830,7 @@ async def handle_list_tools() -> list[types.Tool]:
                         "default": None
                     }
                 },
-                "required": ["date"]
+                "required": []
             },
             meta={
                 "openai/toolInvocation/invoking": "正在生成周报预览...",
@@ -1271,189 +1299,164 @@ async def handle_call_tool(
         
         # ========== 新增6个规划工具 ==========
         elif name == "check_upcoming_completeness":
-            weeks_ahead = arguments.get("weeks_ahead", 4)
-            year = arguments.get("year")
-            
-            from datetime import datetime, timedelta
-            
-            # 计算未来日期范围
-            today = datetime.now()
-            end_date = today + timedelta(weeks=weeks_ahead)
-            start_date = today.strftime("%Y-%m-%d")
-            end_date_str = end_date.strftime("%Y-%m-%d")
-            
-            # 加载数据
-            volunteer_data = load_service_layer_data("volunteer", year)
-            sermon_data = load_service_layer_data("sermon", year)
-            
-            if "error" in volunteer_data or "error" in sermon_data:
-                return [types.TextContent(
-                    type="text",
-                    text="数据加载失败，请检查数据源",
-                    structuredContent={
-                        "success": False,
-                        "error": volunteer_data.get("error") or sermon_data.get("error")
-                    }
-                )]
-            
-            # 分析空缺
-            volunteers = volunteer_data.get("volunteers", [])
-            sermons = sermon_data.get("sermons", [])
-            
-            # 筛选未来日期
-            future_volunteers = [
-                v for v in volunteers 
-                if start_date <= v.get("service_date", "") <= end_date_str
-            ]
-            future_sermons = [
-                s for s in sermons 
-                if start_date <= s.get("service_date", "") <= end_date_str
-            ]
-            
-            # 分析空缺 - 更详细的角色检查
-            gaps = []
-            role_mapping = {
-                'worship_lead': '敬拜主领',
-                'worship_team': '敬拜同工', 
-                'pianist': '司琴',
-                'audio': '音控',
-                'video': '导播/摄影',
-                'propresenter_play': 'ProPresenter播放',
-                'propresenter_update': 'ProPresenter更新'
-            }
-            
-            for record in future_volunteers:
-                service_date = record.get("service_date")
+            try:
+                weeks_ahead = arguments.get("weeks_ahead", 4)
+                year = arguments.get("year")
                 
-                # 检查敬拜团队空缺
-                worship = record.get("worship", {})
-                if worship:
-                    # 敬拜主领
-                    lead = worship.get("lead", {})
-                    if not lead.get("id") or not lead.get("name"):
-                        gaps.append({
-                            "date": service_date,
-                            "role": "敬拜主领",
-                            "role_key": "worship_lead",
-                            "status": "vacant",
-                            "priority": "high"
-                        })
-                    
-                    # 敬拜同工
-                    team = worship.get("team", [])
-                    if not team or (isinstance(team, list) and len(team) == 0):
-                        gaps.append({
-                            "date": service_date,
-                            "role": "敬拜同工",
-                            "role_key": "worship_team", 
-                            "status": "vacant",
-                            "priority": "high"
-                        })
-                    
-                    # 司琴
-                    pianist = worship.get("pianist", {})
-                    if not pianist.get("id") or not pianist.get("name"):
-                        gaps.append({
-                            "date": service_date,
-                            "role": "司琴",
-                            "role_key": "pianist",
-                            "status": "vacant",
-                            "priority": "high"
-                        })
+                from datetime import datetime, timedelta
                 
-                # 检查技术团队空缺
-                technical = record.get("technical", {})
-                if technical:
-                    tech_roles = {
-                        'audio': '音控',
-                        'video': '导播/摄影', 
-                        'propresenter_play': 'ProPresenter播放',
-                        'propresenter_update': 'ProPresenter更新'
-                    }
+                # 计算未来日期范围
+                today = datetime.now()
+                end_date = today + timedelta(weeks=weeks_ahead)
+                start_date = today.strftime("%Y-%m-%d")
+                end_date_str = end_date.strftime("%Y-%m-%d")
+                
+                # 加载数据
+                volunteer_data = load_service_layer_data("volunteer", year)
+                sermon_data = load_service_layer_data("sermon", year)
+                
+                if "error" in volunteer_data or "error" in sermon_data:
+                    return [types.TextContent(
+                        type="text",
+                        text="数据加载失败，请检查数据源",
+                        structuredContent={
+                            "success": False,
+                            "error": volunteer_data.get("error") or sermon_data.get("error")
+                        }
+                    )]
+                
+                # 分析空缺
+                volunteers = volunteer_data.get("volunteers", [])
+                sermons = sermon_data.get("sermons", [])
+                
+                # 筛选未来日期
+                future_volunteers = [
+                    v for v in volunteers 
+                    if start_date <= v.get("service_date", "") <= end_date_str
+                ]
+                future_sermons = [
+                    s for s in sermons 
+                    if start_date <= s.get("service_date", "") <= end_date_str
+                ]
+                
+                # 分析空缺 - 检查具体的岗位字段
+                gaps = []
+                for record in future_volunteers:
+                    service_date = record.get("service_date")
                     
-                    for tech_key, tech_name in tech_roles.items():
-                        tech_person = technical.get(tech_key, {})
-                        if not tech_person.get("id") or not tech_person.get("name"):
+                    # 检查敬拜相关岗位
+                    worship = record.get("worship", {})
+                    if worship:
+                        # 敬拜主领
+                        lead = worship.get("lead", {})
+                        if not lead.get("id"):
                             gaps.append({
                                 "date": service_date,
-                                "role": tech_name,
-                                "role_key": tech_key,
-                                "status": "vacant",
-                                "priority": "medium" if tech_key in ['propresenter_play', 'propresenter_update'] else "high"
+                                "role": "worship_lead",
+                                "status": "vacant"
                             })
-            
-            # 检查证道空缺
-            for sermon in future_sermons:
-                preacher = sermon.get("preacher", {})
-                if not preacher.get("name"):
-                    gaps.append({
-                        "date": sermon.get("service_date"),
-                        "role": "讲员",
-                        "role_key": "preacher",
-                        "status": "vacant",
-                        "priority": "critical"
-                    })
-            
-            # 按紧急度和日期排序
-            priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
-            gaps.sort(key=lambda x: (priority_order.get(x.get("priority", "low"), 3), x["date"]))
-            
-            # 生成详细报告
-            if gaps:
-                # 按优先级分组统计
-                critical_gaps = [g for g in gaps if g.get("priority") == "critical"]
-                high_gaps = [g for g in gaps if g.get("priority") == "high"] 
-                medium_gaps = [g for g in gaps if g.get("priority") == "medium"]
-                
-                text_lines = [f"⚠️ 发现 {len(gaps)} 个空缺岗位（未来{weeks_ahead}周）\n"]
-                
-                if critical_gaps:
-                    text_lines.append("🚨 紧急空缺（讲员）：")
-                    for gap in critical_gaps:
-                        text_lines.append(f"  • {gap['date']} - {gap['role']} 空缺")
-                
-                if high_gaps:
-                    text_lines.append("\n🔴 重要空缺（敬拜/技术）：")
-                    for gap in high_gaps:
-                        text_lines.append(f"  • {gap['date']} - {gap['role']} 空缺")
-                
-                if medium_gaps:
-                    text_lines.append("\n🟡 一般空缺（辅助岗位）：")
-                    for gap in medium_gaps:
-                        text_lines.append(f"  • {gap['date']} - {gap['role']} 空缺")
-                
-                # 按日期汇总
-                text_lines.append(f"\n📅 按日期汇总：")
-                date_groups = {}
-                for gap in gaps:
-                    date = gap['date']
-                    if date not in date_groups:
-                        date_groups[date] = []
-                    date_groups[date].append(gap['role'])
-                
-                for date in sorted(date_groups.keys()):
-                    roles = date_groups[date]
-                    text_lines.append(f"  • {date}: {', '.join(roles)}")
+                        
+                        # 敬拜同工
+                        team = worship.get("team", [])
+                        if not team or (isinstance(team, list) and len(team) == 0):
+                            gaps.append({
+                                "date": service_date,
+                                "role": "worship_team",
+                                "status": "vacant"
+                            })
+                        
+                        # 司琴
+                        pianist = worship.get("pianist", {})
+                        if not pianist.get("id"):
+                            gaps.append({
+                                "date": service_date,
+                                "role": "pianist",
+                                "status": "vacant"
+                            })
                     
-            else:
-                text_lines = [f"✅ 未来{weeks_ahead}周排班完整，无空缺岗位"]
-            
-            return [types.TextContent(
-                type="text",
-                text="\n".join(text_lines),
-                structuredContent={
-                    "success": True,
-                    "weeks_ahead": weeks_ahead,
-                    "gaps": gaps,
-                    "gap_count": len(gaps),
-                    "date_range": {"start": start_date, "end": end_date_str}
-                }
-            )]
+                    # 检查技术相关岗位
+                    technical = record.get("technical", {})
+                    if technical:
+                        for tech_role in ['audio', 'video', 'propresenter_play', 'propresenter_update']:
+                            person = technical.get(tech_role, {})
+                            if not person.get("id"):
+                                gaps.append({
+                                    "date": service_date,
+                                    "role": tech_role,
+                                    "status": "vacant"
+                                })
+                
+                # 检查证道空缺
+                for sermon in future_sermons:
+                    if not sermon.get("preacher", {}).get("name"):
+                        gaps.append({
+                            "date": sermon.get("service_date"),
+                            "role": "preacher",
+                            "status": "vacant"
+                        })
+                
+                # 按紧急度排序
+                gaps.sort(key=lambda x: x["date"])
+                
+                # 生成报告 - 按日期归类
+                if gaps:
+                    # 按日期分组
+                    gaps_by_date = {}
+                    for gap in gaps:
+                        date = gap['date']
+                        if date not in gaps_by_date:
+                            gaps_by_date[date] = []
+                        gaps_by_date[date].append(gap)
+                    
+                    text_lines = [f"⚠️ 发现 {len(gaps)} 个空缺岗位（未来{weeks_ahead}周）\n"]
+                    
+                    # 按日期排序并显示
+                    for date in sorted(gaps_by_date.keys()):
+                        date_gaps = gaps_by_date[date]
+                        role_names = [get_role_display_name(gap['role']) for gap in date_gaps]
+                        roles_text = "、".join(role_names)
+                        text_lines.append(f"{date} - {roles_text} 空缺")
+                else:
+                    text_lines = [f"✅ 未来{weeks_ahead}周排班完整，无空缺岗位"]
+                
+                return [types.TextContent(
+                    type="text",
+                    text="\n".join(text_lines),
+                    structuredContent={
+                        "success": True,
+                        "weeks_ahead": weeks_ahead,
+                        "gaps": gaps,
+                        "gap_count": len(gaps),
+                        "date_range": {"start": start_date, "end": end_date_str}
+                    }
+                )]
+            except Exception as e:
+                logger.error(f"Error in check_upcoming_completeness: {e}")
+                return [types.TextContent(
+                    type="text",
+                    text=f"检查空缺岗位失败：{str(e)}",
+                    structuredContent={
+                        "success": False,
+                        "error": str(e)
+                    }
+                )]
         
         elif name == "generate_weekly_preview":
             date = arguments.get("date")
             format_type = arguments.get("format", "text")
             year = arguments.get("year")
+            
+            # 如果没有提供日期，自动生成下一个周日
+            if not date:
+                from datetime import datetime, timedelta
+                today = datetime.now()
+                # 计算下一个周日的日期
+                # weekday() 返回 0-6，0是周一，6是周日
+                days_until_sunday = (6 - today.weekday()) % 7
+                if days_until_sunday == 0:  # 如果今天是周日，获取下周日
+                    days_until_sunday = 7
+                next_sunday = today + timedelta(days=days_until_sunday)
+                date = next_sunday.strftime("%Y-%m-%d")
             
             # 加载数据
             volunteer_data = load_service_layer_data("volunteer", year)
@@ -1508,14 +1511,15 @@ async def handle_call_tool(
                     if worship.get('pianist', {}).get('name'):
                         text_lines.append(f"    • 司琴: {worship['pianist']['name']}")
                 
-                # 技术团队
+                # 媒体团队
                 technical = volunteer.get('technical', {})
                 if technical:
-                    text_lines.append("  🔧 技术团队:")
+                    text_lines.append("  📺 媒体团队:")
                     for tech_role in ['audio', 'video', 'propresenter_play', 'propresenter_update']:
                         person = technical.get(tech_role, {})
                         if person.get('name'):
-                            text_lines.append(f"    • {tech_role}: {person['name']}")
+                            role_display_name = get_role_display_name(tech_role)
+                            text_lines.append(f"    • {role_display_name}: {person['name']}")
             else:
                 text_lines.append("\n👥 同工安排: 待定")
             
