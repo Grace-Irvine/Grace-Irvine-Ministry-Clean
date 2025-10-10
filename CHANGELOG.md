@@ -5,6 +5,36 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [3.1.0] - 2025-10-10
+
+### 🎯 主要更新：OpenAI Apps SDK 对齐
+
+**完全兼容 ChatGPT Apps SDK**
+
+#### 1. 工具元数据增强 ✅
+- 为所有 7 个工具添加 `meta` 字段
+- 支持状态字符串显示（`openai/toolInvocation/invoking` 和 `invoked`）
+
+#### 2. 响应格式升级 ✅
+- `text` 字段：人类可读的简短描述（非 JSON 字符串）
+- `structuredContent` 字段：AI 可理解的结构化数据
+- 移除冗余的 `timestamp` 字段
+
+#### 3. 测试验证 ✅
+- 创建自动化测试脚本 `test_openai_alignment.py`
+- 100% 测试通过率
+- 验证 HTTP 服务器序列化兼容性
+
+#### 4. 文档更新 📄
+- 新增 `docs/OPENAI_ALIGNMENT.md` - 完整对齐报告
+- 更新 `README.md` - v3.1 特性说明
+
+**参考**:
+- [OpenAI Apps SDK 文档](https://developers.openai.com/apps-sdk/build/mcp-server)
+- [Pizzaz 示例代码](https://github.com/openai/openai-apps-sdk-examples)
+
+---
+
 ## [3.0.3] - 2025-10-07
 
 ### 修复 (Hotfix) 🔧

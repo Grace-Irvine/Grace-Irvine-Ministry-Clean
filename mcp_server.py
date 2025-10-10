@@ -195,6 +195,10 @@ async def handle_list_tools() -> list[types.Tool]:
                     }
                 },
                 "required": ["date"]
+            },
+            meta={
+                "openai/toolInvocation/invoking": "正在查询同工服侍安排...",
+                "openai/toolInvocation/invoked": "查询完成"
             }
         ),
         types.Tool(
@@ -214,6 +218,10 @@ async def handle_list_tools() -> list[types.Tool]:
                     }
                 },
                 "required": ["date"]
+            },
+            meta={
+                "openai/toolInvocation/invoking": "正在查询证道信息...",
+                "openai/toolInvocation/invoked": "查询完成"
             }
         ),
         types.Tool(
@@ -238,6 +246,10 @@ async def handle_list_tools() -> list[types.Tool]:
                     }
                 },
                 "required": ["start_date", "end_date"]
+            },
+            meta={
+                "openai/toolInvocation/invoking": "正在查询日期范围...",
+                "openai/toolInvocation/invoked": "查询完成"
             }
         ),
         
@@ -254,6 +266,10 @@ async def handle_list_tools() -> list[types.Tool]:
                         "default": False
                     }
                 }
+            },
+            meta={
+                "openai/toolInvocation/invoking": "正在清洗数据...",
+                "openai/toolInvocation/invoked": "清洗完成"
             }
         ),
         types.Tool(
@@ -279,6 +295,10 @@ async def handle_list_tools() -> list[types.Tool]:
                         "default": True
                     }
                 }
+            },
+            meta={
+                "openai/toolInvocation/invoking": "正在生成服务层...",
+                "openai/toolInvocation/invoked": "生成完成"
             }
         ),
         types.Tool(
@@ -298,6 +318,10 @@ async def handle_list_tools() -> list[types.Tool]:
                         "default": True
                     }
                 }
+            },
+            meta={
+                "openai/toolInvocation/invoking": "正在验证数据...",
+                "openai/toolInvocation/invoked": "验证完成"
             }
         ),
         types.Tool(
@@ -319,6 +343,10 @@ async def handle_list_tools() -> list[types.Tool]:
                         "default": ["latest"]
                     }
                 }
+            },
+            meta={
+                "openai/toolInvocation/invoking": "正在同步数据...",
+                "openai/toolInvocation/invoked": "同步完成"
             }
         )
     ]
@@ -343,11 +371,11 @@ async def handle_call_tool(
             if "error" in data:
                 return [types.TextContent(
                     type="text",
-                    text=json.dumps({
+                    text=f"查询失败：{data['error']}",
+                    structuredContent={
                         "success": False,
-                        "error": data["error"],
-                        "timestamp": datetime.now().isoformat()
-                    }, ensure_ascii=False, indent=2)
+                        "error": data["error"]
+                    }
                 )]
             
             # 过滤指定日期
@@ -356,13 +384,13 @@ async def handle_call_tool(
             
             return [types.TextContent(
                 type="text",
-                text=json.dumps({
+                text=f"找到 {len(result)} 条同工服侍记录（{date}）",
+                structuredContent={
                     "success": True,
                     "date": date,
                     "assignments": result,
-                    "count": len(result),
-                    "timestamp": datetime.now().isoformat()
-                }, ensure_ascii=False, indent=2)
+                    "count": len(result)
+                }
             )]
         
         elif name == "query_sermon_by_date":
@@ -375,11 +403,11 @@ async def handle_call_tool(
             if "error" in data:
                 return [types.TextContent(
                     type="text",
-                    text=json.dumps({
+                    text=f"查询失败：{data['error']}",
+                    structuredContent={
                         "success": False,
-                        "error": data["error"],
-                        "timestamp": datetime.now().isoformat()
-                    }, ensure_ascii=False, indent=2)
+                        "error": data["error"]
+                    }
                 )]
             
             # 过滤指定日期
@@ -388,13 +416,13 @@ async def handle_call_tool(
             
             return [types.TextContent(
                 type="text",
-                text=json.dumps({
+                text=f"找到 {len(result)} 条证道记录（{date}）",
+                structuredContent={
                     "success": True,
                     "date": date,
                     "sermons": result,
-                    "count": len(result),
-                    "timestamp": datetime.now().isoformat()
-                }, ensure_ascii=False, indent=2)
+                    "count": len(result)
+                }
             )]
         
         elif name == "query_date_range":
@@ -403,6 +431,7 @@ async def handle_call_tool(
             domain = arguments.get("domain", "both")
             
             results = {}
+            total_count = 0
             
             # 查询 volunteer
             if domain in ["volunteer", "both"]:
@@ -417,6 +446,7 @@ async def handle_call_tool(
                         "count": len(filtered),
                         "records": filtered
                     }
+                    total_count += len(filtered)
             
             # 查询 sermon
             if domain in ["sermon", "both"]:
@@ -431,16 +461,18 @@ async def handle_call_tool(
                         "count": len(filtered),
                         "records": filtered
                     }
+                    total_count += len(filtered)
             
             return [types.TextContent(
                 type="text",
-                text=json.dumps({
+                text=f"找到 {total_count} 条记录（{start_date} 至 {end_date}）",
+                structuredContent={
                     "success": True,
                     "start_date": start_date,
                     "end_date": end_date,
                     "results": results,
-                    "timestamp": datetime.now().isoformat()
-                }, ensure_ascii=False, indent=2)
+                    "total_count": total_count
+                }
             )]
         
         elif name == "sync_from_gcs":
@@ -467,21 +499,22 @@ async def handle_call_tool(
                 
                 return [types.TextContent(
                     type="text",
-                    text=json.dumps({
+                    text="GCS 客户端未初始化，请检查配置",
+                    structuredContent={
                         "success": False,
-                        "error": "GCS client not initialized. Check configuration and logs.",
+                        "error": "GCS client not initialized",
                         "diagnostic": diagnostic_info,
                         "suggestions": [
-                            "1. Check if config/config.json exists",
-                            "2. Check if config/service-account.json exists",
-                            "3. Verify google-cloud-storage is installed: pip install google-cloud-storage",
-                            "4. Check MCP Server logs for detailed error messages"
-                        ],
-                        "timestamp": datetime.now().isoformat()
-                    }, ensure_ascii=False, indent=2)
+                            "检查 config/config.json 是否存在",
+                            "检查 config/service-account.json 是否存在",
+                            "验证 google-cloud-storage 已安装",
+                            "查看 MCP Server 日志了解详情"
+                        ]
+                    }
                 )]
             
             synced_files = {}
+            success_count = 0
             
             for domain in domains:
                 synced_files[domain] = {}
@@ -503,6 +536,7 @@ async def handle_call_tool(
                         
                         synced_files[domain][version] = str(local_path)
                         logger.info(f"Synced {domain}/{version} to {local_path}")
+                        success_count += 1
                         
                     except Exception as e:
                         logger.error(f"Failed to sync {domain}/{version}: {e}")
@@ -510,12 +544,12 @@ async def handle_call_tool(
             
             return [types.TextContent(
                 type="text",
-                text=json.dumps({
+                text=f"同步完成，成功同步 {success_count} 个文件",
+                structuredContent={
                     "success": True,
-                    "message": "Sync completed",
                     "synced_files": synced_files,
-                    "timestamp": datetime.now().isoformat()
-                }, ensure_ascii=False, indent=2)
+                    "total_synced": success_count
+                }
             )]
         
         # ========== 数据管理工具 ==========
@@ -527,14 +561,17 @@ async def handle_call_tool(
             pipeline = CleaningPipeline(CONFIG_PATH)
             exit_code = pipeline.run(dry_run=dry_run)
             
+            success = exit_code == 0
+            message = "数据清洗成功完成" if success else "数据清洗完成，但有错误"
+            
             return [types.TextContent(
                 type="text",
-                text=json.dumps({
-                    "success": exit_code == 0,
-                    "message": "Data cleaning completed successfully" if exit_code == 0 else "Data cleaning completed with errors",
+                text=message,
+                structuredContent={
+                    "success": success,
                     "exit_code": exit_code,
-                    "timestamp": datetime.now().isoformat()
-                }, ensure_ascii=False, indent=2)
+                    "dry_run": dry_run
+                }
             )]
         
         elif name == "generate_service_layer":
@@ -549,11 +586,11 @@ async def handle_call_tool(
             if not clean_data_path.exists():
                 return [types.TextContent(
                     type="text",
-                    text=json.dumps({
+                    text="未找到清洗数据，请先运行数据清洗",
+                    structuredContent={
                         "success": False,
-                        "error": "No cleaned data found. Please run clean_ministry_data first.",
-                        "timestamp": datetime.now().isoformat()
-                    }, ensure_ascii=False, indent=2)
+                        "error": "No cleaned data found. Please run clean_ministry_data first."
+                    }
                 )]
             
             import pandas as pd
@@ -577,12 +614,13 @@ async def handle_call_tool(
             
             return [types.TextContent(
                 type="text",
-                text=json.dumps({
+                text=f"已生成 {len(domains)} 个领域的服务层数据",
+                structuredContent={
                     "success": True,
-                    "message": f"Generated {len(domains)} domain(s)",
+                    "domains": domains,
                     "files": results,
-                    "timestamp": datetime.now().isoformat()
-                }, ensure_ascii=False, indent=2)
+                    "generate_all_years": generate_all_years
+                }
             )]
         
         elif name == "validate_raw_data":
@@ -604,24 +642,27 @@ async def handle_call_tool(
                     with open(report_files[0], 'r', encoding='utf-8') as f:
                         report_summary = f.read()[:1000]  # First 1000 chars
                 
+                success = exit_code == 0
+                message = "数据验证完成" if success else "数据验证完成，发现问题"
+                
                 return [types.TextContent(
                     type="text",
-                    text=json.dumps({
-                        "success": exit_code == 0,
-                        "message": "Data validation completed via dry-run",
+                    text=message,
+                    structuredContent={
+                        "success": success,
                         "exit_code": exit_code,
                         "report_preview": report_summary,
-                        "timestamp": datetime.now().isoformat()
-                    }, ensure_ascii=False, indent=2)
+                        "check_duplicates": check_duplicates
+                    }
                 )]
             except Exception as e:
                 return [types.TextContent(
                     type="text",
-                    text=json.dumps({
+                    text=f"验证失败：{str(e)}",
+                    structuredContent={
                         "success": False,
-                        "error": f"Validation failed: {str(e)}",
-                        "timestamp": datetime.now().isoformat()
-                    }, ensure_ascii=False, indent=2)
+                        "error": str(e)
+                    }
                 )]
         
         else:
@@ -631,11 +672,12 @@ async def handle_call_tool(
         logger.error(f"Error calling tool {name}: {e}")
         return [types.TextContent(
             type="text",
-            text=json.dumps({
+            text=f"工具调用失败：{str(e)}",
+            structuredContent={
                 "success": False,
                 "error": str(e),
-                "timestamp": datetime.now().isoformat()
-            })
+                "tool_name": name
+            }
         )]
 
 
