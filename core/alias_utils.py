@@ -5,7 +5,7 @@
 
 from typing import Dict, Tuple, Optional, List
 import pandas as pd
-from scripts.gsheet_utils import GSheetClient
+from core.gsheet_utils import GSheetClient
 
 
 class AliasMapper:

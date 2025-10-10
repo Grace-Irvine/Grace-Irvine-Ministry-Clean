@@ -176,7 +176,7 @@ def main():
     import sys
     sys.path.insert(0, str(Path(__file__).parent.parent))
     
-    from scripts.gsheet_utils import GSheetClient
+    from core.gsheet_utils import GSheetClient
     import argparse
     
     logging.basicConfig(

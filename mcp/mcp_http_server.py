@@ -20,11 +20,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 
-# 添加项目路径
-sys.path.insert(0, str(Path(__file__).parent))
+# 添加项目根目录到 Python 路径
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # 导入 MCP Server 处理函数
-import mcp_server
+from mcp import mcp_server
 
 # 配置日志
 logging.basicConfig(

@@ -1,5 +1,6 @@
 #!/bin/bash
-# Google Cloud Run 部署脚本
+# API Service Cloud Run 部署脚本
+# 部署数据清洗和管理API服务
 
 set -e  # 遇到错误立即退出
 
@@ -10,10 +11,11 @@ set -e  # 遇到错误立即退出
 # 项目配置
 PROJECT_ID="${GCP_PROJECT_ID:-ai-for-god}"
 REGION="${GCP_REGION:-us-central1}"
-SERVICE_NAME="ministry-data-cleaning"
+SERVICE_NAME="ministry-data-api"
 
 # 容器镜像配置
 IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
+DOCKERFILE_PATH="api/Dockerfile"
 
 # Cloud Run 配置
 MEMORY="1Gi"
@@ -109,7 +111,8 @@ fi
 
 # 5. 构建容器镜像
 print_header "5. 构建 Docker 镜像"
-gcloud builds submit --tag "$IMAGE_NAME" .
+echo "使用 Dockerfile: $DOCKERFILE_PATH"
+gcloud builds submit --tag "$IMAGE_NAME" --file="$DOCKERFILE_PATH" .
 
 # 6. 部署到 Cloud Run
 print_header "6. 部署到 Cloud Run"
@@ -122,7 +125,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --max-instances="$MAX_INSTANCES" \
     --timeout="$TIMEOUT" \
     --service-account="$SERVICE_ACCOUNT" \
-    --set-env-vars="SCHEDULER_TOKEN=${SCHEDULER_TOKEN},CONFIG_PATH=/app/config/config.json" \
+    --set-env-vars="SCHEDULER_TOKEN=${SCHEDULER_TOKEN}" \
     --allow-unauthenticated
 
 # 7. 获取服务 URL

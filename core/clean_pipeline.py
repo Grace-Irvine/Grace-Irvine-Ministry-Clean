@@ -19,11 +19,11 @@ from tqdm import tqdm
 script_dir = Path(__file__).parent
 sys.path.insert(0, str(script_dir.parent))
 
-from scripts.gsheet_utils import GSheetClient
-from scripts.alias_utils import AliasMapper
-from scripts.cleaning_rules import CleaningRules
-from scripts.validators import DataValidator
-from scripts.service_layer import ServiceLayerManager
+from core.gsheet_utils import GSheetClient
+from core.alias_utils import AliasMapper
+from core.cleaning_rules import CleaningRules
+from core.validators import DataValidator
+from core.service_layer import ServiceLayerManager
 
 
 # 配置日志
@@ -359,7 +359,7 @@ class CleaningPipeline:
         storage_config = service_layer_config.get('storage', {})
         if storage_config.get('provider') == 'gcs' and storage_config.get('bucket'):
             try:
-                from scripts.cloud_storage_utils import DomainStorageManager
+                from core.cloud_storage_utils import DomainStorageManager
                 
                 bucket_name = storage_config['bucket']
                 base_path = storage_config.get('base_path', 'domains/')

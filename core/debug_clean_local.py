@@ -15,9 +15,9 @@ import pandas as pd
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scripts.alias_utils import AliasMapper
-from scripts.cleaning_rules import CleaningRules
-from scripts.validators import DataValidator
+from core.alias_utils import AliasMapper
+from core.cleaning_rules import CleaningRules
+from core.validators import DataValidator
 
 
 class LocalCleaningPipeline:

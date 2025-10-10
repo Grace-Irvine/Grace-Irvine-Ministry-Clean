@@ -86,13 +86,38 @@ curl "https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app/api/v1/sermon?year=
 curl https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app/mcp/capabilities
 ```
 
+## 🏗️ 架构概览
+
+本系统采用**单一仓库（Monorepo）**架构，通过清晰的目录结构实现了**API服务**和**MCP服务**的职责分离：
+
+```
+├── api/          # API服务 - 数据清洗和管理（FastAPI）
+├── mcp/          # MCP服务 - AI助手集成（MCP协议）
+├── core/         # 共享核心业务逻辑（80%+代码重用）
+└── deploy/       # 独立部署脚本
+```
+
+**两个独立服务**:
+- 🔵 **API Service** (`ministry-data-api`) - 数据清洗、REST API、统计分析
+- 🟢 **MCP Service** (`ministry-data-mcp`) - AI助手集成、MCP协议、自然语言查询
+
+**独立部署** → 各自的Dockerfile → 独立Cloud Run服务 → 共享core/逻辑
+
+👉 **详细架构说明**: [ARCHITECTURE.md](ARCHITECTURE.md)
+
+---
+
 ## 📚 文档导航
 
 | 文档 | 描述 | 适用人群 |
 |-----|------|----------|
 | [README.md](README.md)（本文档） | 完整用户指南和技术文档 | 所有用户 |
+| [**ARCHITECTURE.md**](ARCHITECTURE.md) | **🏗️ 系统架构设计文档（新！）** | **开发者/架构师** |
 | [docs/QUICKSTART.md](docs/QUICKSTART.md) | ⚡ 5 分钟快速上手指南 | 新用户 |
-| **🤖 MCP 相关文档** | | |
+| **🔵 API服务文档** | | |
+| [api/README.md](api/README.md) | 🔵 API服务专用文档（新！） | **API开发者** |
+| **🤖 MCP服务文档** | | |
+| [mcp/README.md](mcp/README.md) | 🟢 MCP服务专用文档（新！） | **MCP开发者** |
 | [QUICKSTART_MCP.md](QUICKSTART_MCP.md) | 🤖 MCP 5分钟快速开始 | **MCP 新用户** |
 | [VOLUNTEER_ANALYSIS_PROMPTS.md](VOLUNTEER_ANALYSIS_PROMPTS.md) | 🎯 同工服侍分析提示词指南（新！） | **教会管理者** |
 | [docs/MCP_DESIGN.md](docs/MCP_DESIGN.md) | 🏗️ MCP 架构设计方案（1300+ 行） | **开发者** |
@@ -615,12 +640,21 @@ ProPresenter更新: 李慧
 ```
 Grace-Irvine-Ministry-Clean/
 │
-├── config/
-│   ├── config.json                          # 配置文件
-│   ├── claude_desktop_config.example.json   # Claude Desktop 配置示例
-│   └── env.example                          # 环境变量示例
+├── api/                         # 🔵 API服务（数据清洗和管理）
+│   ├── app.py                   # FastAPI应用主文件
+│   ├── Dockerfile               # API服务专用Dockerfile
+│   ├── __init__.py              # Python包标识
+│   └── README.md                # API服务文档
 │
-├── scripts/
+├── mcp/                         # 🟢 MCP服务（AI助手集成）
+│   ├── mcp_server.py            # stdio模式服务器
+│   ├── mcp_http_server.py       # HTTP/SSE模式服务器
+│   ├── Dockerfile               # MCP服务专用Dockerfile
+│   ├── __init__.py              # Python包标识
+│   └── README.md                # MCP服务文档
+│
+├── core/                        # 🔧 共享核心业务逻辑
+│   ├── __init__.py
 │   ├── clean_pipeline.py        # 主清洗管线
 │   ├── service_layer.py         # 服务层转换器
 │   ├── gsheet_utils.py          # Google Sheets 工具
@@ -630,47 +664,54 @@ Grace-Irvine-Ministry-Clean/
 │   ├── cloud_storage_utils.py   # Cloud Storage 工具
 │   └── change_detector.py       # 变化检测
 │
-├── mcp_server.py                # MCP Server (stdio 模式) - v3.0
-├── mcp_http_server.py           # MCP HTTP/SSE 服务器 - v3.0
-├── app.py                       # FastAPI 应用
-├── Dockerfile                   # 容器配置
+├── deploy/                      # 📦 部署脚本
+│   ├── deploy-api.sh            # API服务部署
+│   ├── deploy-mcp.sh            # MCP服务部署
+│   └── deploy-all.sh            # 统一部署脚本
 │
-├── deploy-cloud-run.sh          # Cloud Run 部署脚本
-├── deploy-mcp-cloud-run.sh      # MCP Cloud Run 部署 - v3.0
-├── test_mcp_server.sh           # MCP 测试脚本 - v3.0
+├── config/                      # ⚙️ 配置文件
+│   ├── config.json              # 主配置文件
+│   ├── claude_desktop_config.example.json   # Claude Desktop 配置示例
+│   ├── env.example              # 环境变量示例
+│   └── service-account.json     # GCP服务账号
 │
-├── docs/
-│   ├── MCP_DESIGN.md            # MCP 架构设计 - v3.0
-│   ├── MCP_DEPLOYMENT.md        # MCP 部署指南 - v3.0
-│   ├── MCP_INTEGRATION.md       # MCP 集成指南 - v3.0
+├── docs/                        # 📚 文档
+│   ├── MCP_DESIGN.md            # MCP 架构设计
+│   ├── MCP_DEPLOYMENT.md        # MCP 部署指南
+│   ├── MCP_INTEGRATION.md       # MCP 集成指南
 │   ├── DEPLOYMENT.md            # 云部署指南
 │   ├── SERVICE_LAYER.md         # 服务层文档
 │   ├── STORAGE.md               # 存储文档
 │   └── ...
 │
 ├── examples/
-│   └── mcp_client_example.py    # MCP 客户端示例 - v3.0
+│   └── mcp_client_example.py    # MCP 客户端示例
 │
-├── ministry-data.mcpb           # MCPB 打包文件 - v3.0
-│
-├── tests/
+├── tests/                       # 🧪 测试
 │   ├── sample_raw.csv           # 样例原始数据
 │   ├── sample_aliases.csv       # 样例别名数据
 │   └── test_cleaning.py         # 单元测试
 │
-├── logs/
+├── logs/                        # 📊 日志和输出
 │   ├── clean_preview.csv        # 清洗预览 (CSV)
 │   ├── clean_preview.json       # 清洗预览 (JSON)
 │   ├── service_layer/           # 服务层数据
 │   └── validation_report_*.txt  # 校验报告
 │
-├── CHANGELOG.md                 # 版本历史 (v3.0)
-├── README.md                    # 本文档 (v3.0)
-├── QUICKSTART_MCP.md            # MCP 快速开始 - v3.0
-├── MCP_QUICK_REFERENCE.md       # MCP 快速参考 - v3.0
+├── ARCHITECTURE.md              # 🏗️ 系统架构设计（新！）
+├── CHANGELOG.md                 # 📝 版本历史
+├── README.md                    # 本文档
+├── QUICKSTART_MCP.md            # MCP 快速开始
+├── ministry-data.mcpb           # MCPB 打包文件
 ├── requirements.txt             # Python 依赖
 └── .gitignore                   # Git 忽略文件
 ```
+
+**架构说明**：
+- 🔵 **api/** - 独立的API服务，拥有自己的Dockerfile
+- 🟢 **mcp/** - 独立的MCP服务，拥有自己的Dockerfile
+- 🔧 **core/** - 共享业务逻辑，被两个服务复用（80%+代码重用）
+- 📦 **deploy/** - 独立部署脚本，支持分别或统一部署
 
 ## 🏗️ MCP 架构设计（v3.0）
 
