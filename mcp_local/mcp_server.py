@@ -2,6 +2,16 @@
 """
 MCP (Model Context Protocol) Server Implementation
 提供标准 MCP 协议接口，暴露教会主日事工数据管理工具、资源和提示词
+
+Supports two transport modes:
+1. stdio - for local Claude Desktop integration (default)
+2. HTTP/SSE - for Cloud Run deployment with OpenAI/Claude API
+
+Environment Variables:
+- PORT: If set, run in HTTP mode on this port (auto-set by Cloud Run)
+- MCP_BEARER_TOKEN: Bearer token for HTTP authentication
+- MCP_REQUIRE_AUTH: Set to "true" to require authentication (default: true)
+- CONFIG_PATH: Path to config.json file
 """
 
 import os
@@ -20,6 +30,13 @@ import mcp.server.stdio
 import mcp.types as types
 from mcp.server.models import InitializationOptions
 from mcp.server import NotificationOptions, Server
+
+# HTTP/SSE transport imports
+from fastapi import FastAPI, Request, HTTPException, Header, Depends
+from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import uvicorn
 
 # 添加项目根目录到 Python 路径 (for core/ imports)
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -59,6 +76,10 @@ def load_config() -> Dict[str, Any]:
 CONFIG = load_config()
 STORAGE_CONFIG = CONFIG.get('service_layer', {}).get('storage', {})
 
+# HTTP/SSE 配置
+BEARER_TOKEN = os.getenv("MCP_BEARER_TOKEN", "")
+REQUIRE_AUTH = os.getenv("MCP_REQUIRE_AUTH", "true").lower() == "true"
+
 # 初始化 GCS 客户端（如果配置了）
 GCS_CLIENT = None
 if STORAGE_CONFIG.get('provider') == 'gcs':
@@ -84,6 +105,53 @@ if STORAGE_CONFIG.get('provider') == 'gcs':
     except Exception as e:
         logger.error(f"❌ Failed to initialize GCS client: {e}", exc_info=True)
         GCS_CLIENT = None
+
+# ============================================================
+# HTTP/SSE Pydantic Models
+# ============================================================
+
+class MCPRequest(BaseModel):
+    """MCP 请求模型（JSON-RPC 2.0）"""
+    jsonrpc: str = "2.0"
+    id: Optional[str | int] = None
+    method: str
+    params: Optional[Dict[str, Any]] = None
+
+
+class MCPResponse(BaseModel):
+    """MCP 响应模型（JSON-RPC 2.0）"""
+    jsonrpc: str = "2.0"
+    id: Optional[str | int] = None
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[Dict[str, Any]] = None
+
+
+# ============================================================
+# HTTP Authentication
+# ============================================================
+
+async def verify_bearer_token(authorization: Optional[str] = Header(None)) -> bool:
+    """验证 Bearer Token"""
+    if not REQUIRE_AUTH:
+        return True
+    
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization header format")
+    
+    token = authorization.replace("Bearer ", "")
+    
+    if not BEARER_TOKEN:
+        logger.warning("MCP_BEARER_TOKEN not set, allowing all requests")
+        return True
+    
+    if token != BEARER_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid bearer token")
+    
+    return True
+
 
 # ============================================================
 # 辅助函数
@@ -699,6 +767,202 @@ def calculate_retention_rate(volunteers: List[Dict], start_date: str, end_date: 
 # ============================================================
 
 server = Server("ministry-data-mcp")
+
+# ============================================================
+# FastAPI Application (HTTP/SSE Transport)
+# ============================================================
+
+app = FastAPI(
+    title="Ministry Data MCP Server",
+    description="MCP Server with stdio and HTTP/SSE transports",
+    version="2.0.0"
+)
+
+# CORS 配置
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 生产环境应限制具体域名
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ============================================================
+# HTTP MCP Protocol Handler
+# ============================================================
+
+async def handle_mcp_request(request: MCPRequest) -> MCPResponse:
+    """处理 MCP JSON-RPC 请求"""
+    try:
+        method = request.method
+        params = request.params or {}
+        
+        # 路由到对应的 MCP Server 处理器
+        if method == "tools/list":
+            result = await handle_list_tools()
+            return MCPResponse(
+                id=request.id,
+                result={"tools": [tool.model_dump() for tool in result]}
+            )
+        
+        elif method == "tools/call":
+            name = params.get("name")
+            arguments = params.get("arguments", {})
+            result = await handle_call_tool(name, arguments)
+            return MCPResponse(
+                id=request.id,
+                result={"content": [item.model_dump() for item in result]}
+            )
+        
+        elif method == "resources/list":
+            result = await handle_list_resources()
+            return MCPResponse(
+                id=request.id,
+                result={"resources": [res.model_dump() for res in result]}
+            )
+        
+        elif method == "resources/read":
+            uri = params.get("uri")
+            result = await handle_read_resource(uri)
+            return MCPResponse(
+                id=request.id,
+                result={"contents": [{"uri": uri, "mimeType": "application/json", "text": result}]}
+            )
+        
+        elif method == "prompts/list":
+            result = await handle_list_prompts()
+            return MCPResponse(
+                id=request.id,
+                result={"prompts": [prompt.model_dump() for prompt in result]}
+            )
+        
+        elif method == "prompts/get":
+            name = params.get("name")
+            arguments = params.get("arguments", {})
+            result = await handle_get_prompt(name, arguments)
+            return MCPResponse(
+                id=request.id,
+                result=result.model_dump()
+            )
+        
+        elif method == "initialize":
+            return MCPResponse(
+                id=request.id,
+                result={
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {
+                        "tools": {"listChanged": True},
+                        "resources": {"subscribe": False, "listChanged": True},
+                        "prompts": {"listChanged": True}
+                    },
+                    "serverInfo": {
+                        "name": "ministry-data",
+                        "version": "2.0.0"
+                    }
+                }
+            )
+        
+        else:
+            return MCPResponse(
+                id=request.id,
+                error={
+                    "code": -32601,
+                    "message": f"Method not found: {method}"
+                }
+            )
+    
+    except Exception as e:
+        logger.error(f"Error handling MCP request: {e}")
+        return MCPResponse(
+            id=request.id,
+            error={
+                "code": -32603,
+                "message": f"Internal error: {str(e)}"
+            }
+        )
+
+
+# ============================================================
+# HTTP Endpoints
+# ============================================================
+
+@app.get("/")
+async def root():
+    """根端点"""
+    return {
+        "service": "Ministry Data MCP Server",
+        "version": "2.0.0",
+        "protocol": "MCP (Model Context Protocol)",
+        "transports": ["stdio", "HTTP/SSE"],
+        "endpoints": {
+            "mcp": "/mcp",
+            "capabilities": "/mcp/capabilities",
+            "health": "/health"
+        }
+    }
+
+
+@app.get("/health")
+async def health_check():
+    """健康检查"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "auth_required": REQUIRE_AUTH
+    }
+
+
+@app.get("/mcp/capabilities")
+async def get_capabilities(authorized: bool = Depends(verify_bearer_token)):
+    """获取 MCP 服务器能力"""
+    return {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {
+            "tools": {"listChanged": True},
+            "resources": {"subscribe": False, "listChanged": True},
+            "prompts": {"listChanged": True}
+        },
+        "serverInfo": {
+            "name": "ministry-data",
+            "version": "2.0.0",
+            "description": "Church Ministry Data Management MCP Server"
+        }
+    }
+
+
+@app.post("/mcp")
+async def mcp_endpoint(
+    request: MCPRequest,
+    authorized: bool = Depends(verify_bearer_token)
+) -> MCPResponse:
+    """MCP JSON-RPC 端点（HTTP POST）- 支持 SSE"""
+    return await handle_mcp_request(request)
+
+
+@app.get("/mcp/tools")
+async def list_tools_endpoint(authorized: bool = Depends(verify_bearer_token)):
+    """列出所有工具（便捷端点）"""
+    request = MCPRequest(method="tools/list")
+    response = await handle_mcp_request(request)
+    return response.result
+
+
+@app.get("/mcp/resources")
+async def list_resources_endpoint(authorized: bool = Depends(verify_bearer_token)):
+    """列出所有资源（便捷端点）"""
+    request = MCPRequest(method="resources/list")
+    response = await handle_mcp_request(request)
+    return response.result
+
+
+@app.get("/mcp/prompts")
+async def list_prompts_endpoint(authorized: bool = Depends(verify_bearer_token)):
+    """列出所有提示词（便捷端点）"""
+    request = MCPRequest(method="prompts/list")
+    response = await handle_mcp_request(request)
+    return response.result
+
 
 # ============================================================
 # MCP Tools（工具）
@@ -4453,9 +4717,14 @@ async def handle_get_prompt(
 # 启动服务器
 # ============================================================
 
-async def main():
-    """主函数 - 启动 MCP 服务器（stdio 模式）"""
+async def main_stdio():
+    """启动 stdio 传输模式（用于 Claude Desktop）"""
     from mcp.server.stdio import stdio_server
+    
+    logger.info("=" * 60)
+    logger.info("Starting Ministry Data MCP Server (stdio mode)")
+    logger.info("Transport: stdio (for Claude Desktop)")
+    logger.info("=" * 60)
     
     async with stdio_server() as (read_stream, write_stream):
         init_options = InitializationOptions(
@@ -4474,6 +4743,45 @@ async def main():
         )
 
 
+def main_http():
+    """启动 HTTP/SSE 传输模式（用于 Cloud Run / OpenAI / Claude API）"""
+    port = int(os.getenv("PORT", 8080))
+    
+    logger.info("=" * 60)
+    logger.info("Starting Ministry Data MCP Server (HTTP/SSE mode)")
+    logger.info(f"Transport: HTTP/SSE (for Cloud Run/OpenAI/Claude)")
+    logger.info(f"Port: {port}")
+    logger.info(f"Auth Required: {REQUIRE_AUTH}")
+    if REQUIRE_AUTH and not BEARER_TOKEN:
+        logger.warning("⚠️  AUTH REQUIRED BUT NO TOKEN SET!")
+        logger.warning("    Set MCP_BEARER_TOKEN environment variable")
+    logger.info("=" * 60)
+    
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=port,
+        log_level="info"
+    )
+
+
+async def main():
+    """主入口 - 自动检测传输模式"""
+    # 检查是否运行在 HTTP 模式
+    # Cloud Run 会自动设置 PORT 环境变量
+    if os.getenv("PORT") or "--http" in sys.argv:
+        # HTTP/SSE 模式（用于 Cloud Run 或本地 HTTP 测试）
+        main_http()
+    else:
+        # stdio 模式（用于 Claude Desktop）
+        await main_stdio()
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    if os.getenv("PORT") or "--http" in sys.argv:
+        # HTTP 模式不需要 asyncio.run
+        main_http()
+    else:
+        # stdio 模式需要 asyncio.run
+        asyncio.run(main_stdio())
 

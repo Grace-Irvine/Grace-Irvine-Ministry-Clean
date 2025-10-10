@@ -24,7 +24,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 复制项目文件
-COPY mcp/ /app/mcp/
+COPY mcp_local/ /app/mcp_local/
 COPY core/ /app/core/
 COPY config/ /app/config/
 
@@ -37,6 +37,6 @@ ENV GOOGLE_APPLICATION_CREDENTIALS=/app/config/service-account.json
 # 暴露端口
 EXPOSE 8080
 
-# 启动MCP HTTP服务器
-CMD ["python", "mcp/mcp_http_server.py"]
+# 启动统一的MCP服务器 (PORT环境变量触发HTTP模式)
+CMD ["python", "mcp_local/mcp_server.py"]
 
