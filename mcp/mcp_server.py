@@ -13,14 +13,16 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
-# 添加项目根目录到 Python 路径
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# MCP SDK imports
-from mcp.server.models import InitializationOptions
-from mcp.server import NotificationOptions, Server
+# MCP SDK imports (import before adding project root to avoid naming conflict)
+import mcp.server.models
+import mcp.server
 import mcp.server.stdio
 import mcp.types as types
+from mcp.server.models import InitializationOptions
+from mcp.server import NotificationOptions, Server
+
+# 添加项目根目录到 Python 路径 (for core/ imports)
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # 导入应用层代码
 from core.clean_pipeline import CleaningPipeline
@@ -35,8 +37,9 @@ logger = logging.getLogger(__name__)
 
 # 配置文件路径（使用绝对路径）
 SCRIPT_DIR = Path(__file__).parent.absolute()
-CONFIG_PATH = os.getenv('CONFIG_PATH', str(SCRIPT_DIR / 'config' / 'config.json'))
-LOGS_DIR = SCRIPT_DIR / "logs" / "service_layer"
+PROJECT_ROOT = SCRIPT_DIR.parent
+CONFIG_PATH = os.getenv('CONFIG_PATH', str(PROJECT_ROOT / 'config' / 'config.json'))
+LOGS_DIR = PROJECT_ROOT / "logs" / "service_layer"
 
 # 加载配置
 def load_config() -> Dict[str, Any]:
