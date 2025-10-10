@@ -5,6 +5,84 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [3.4.0] - 2025-10-10
+
+### 🔄 主要更新：MCP服务器统一实现
+
+**从两个文件合并为单一文件**
+
+#### 1. 统一服务器实现 ✅
+
+##### `mcp_local/mcp_server.py` - 单一文件实现
+- **功能**：stdio 和 HTTP/SSE 两种模式统一在一个文件中
+- **特性**：
+  - 自动模式检测（基于 PORT 环境变量）
+  - 同时支持 Claude Desktop（stdio）和 ChatGPT/OpenAI（HTTP/SSE）
+  - 单一代码库，避免重复维护
+  - 生产就绪，完全兼容
+
+#### 2. 移除冗余文件 ✅
+
+- **删除** `mcp_local/mcp_http_server.py`（功能已合并）
+- 所有 HTTP/SSE 功能现在在 `mcp_server.py` 中
+
+#### 3. 更新部署配置 ✅
+
+- **Dockerfile更新**：使用统一的 `mcp_server.py`
+- **deploy-mcp.sh更新**：单一镜像构建流程
+- **环境变量**：PORT 自动触发 HTTP 模式
+
+#### 4. 文档整理 ✅
+
+- **更新** `mcp_local/README.md` - 完整的统一实现说明
+- **更新** `README.md` - 精简并聚焦核心功能
+- **删除** 23+ 个重复和过时文档：
+  - ChatGPT 连接相关（6个）
+  - 实施状态文档（3个）
+  - 临时修复文档（4个）
+  - MCP 优化和总结（4个）
+  - 重复的 README（3个）
+  - 其他过时文档（3个）
+
+#### 5. 技术实现细节
+
+- **模式检测**：
+  ```python
+  if PORT in env or "--http" in args:
+      run_http_mode()
+  else:
+      run_stdio_mode()
+  ```
+- **代码重用**：100% 工具、资源、提示词实现共享
+- **向后兼容**：所有现有配置继续工作
+
+#### 6. 部署和使用 ✅
+
+**本地 stdio 模式（Claude Desktop）**：
+```bash
+python mcp_local/mcp_server.py
+```
+
+**本地 HTTP 模式（ChatGPT）**：
+```bash
+PORT=8080 python mcp_local/mcp_server.py
+```
+
+**Cloud Run 部署**：
+```bash
+./deploy/deploy-mcp.sh  # PORT 自动设置
+```
+
+#### 7. 实际应用价值
+
+- ✅ **简化维护**：一个文件，一次更新
+- ✅ **降低复杂度**：不再需要同步两个文件
+- ✅ **统一测试**：单一测试套件
+- ✅ **自动适配**：根据环境自动选择模式
+- ✅ **生产就绪**：经过完整测试验证
+
+---
+
 ## [3.3.0] - 2025-10-10
 
 ### 🚀 主要更新：6个新规划工具

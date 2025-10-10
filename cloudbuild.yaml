@@ -1,0 +1,11 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-f', 'mcp_local/Dockerfile', '-t', 'gcr.io/$PROJECT_ID/ministry-data-mcp', '.']
+  
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/ministry-data-mcp']
+
+images:
+  - 'gcr.io/$PROJECT_ID/ministry-data-mcp'
