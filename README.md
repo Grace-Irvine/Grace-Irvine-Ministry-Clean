@@ -2,6 +2,16 @@
 
 一个完整的教会主日事工数据管理系统，支持数据清洗、服务层转换、RESTful API 访问，以及 **AI 助手集成（MCP 协议）**。
 
+## ✨ v3.2 更新：同工服侍分析提示词
+
+**🎯 新增三个智能分析提示词！** (2025-10-10)
+
+- ✅ **分析下周日同工**：自动计算并分析下周日的服侍安排
+- ✅ **岗位分布分析**：了解同工在不同岗位的服侍情况
+- ✅ **服侍频率分析**：识别服侍过多或过少的同工，优化排班
+
+👉 **查看 [同工分析提示词指南](VOLUNTEER_ANALYSIS_PROMPTS.md)**
+
 ## ✨ v3.1 更新：OpenAI Apps SDK 对齐
 
 **🎉 现在完全兼容 ChatGPT！** (2025-10-10)
@@ -84,6 +94,7 @@ curl https://ministry-data-cleaning-wu7uk5rgdq-uc.a.run.app/mcp/capabilities
 | [docs/QUICKSTART.md](docs/QUICKSTART.md) | ⚡ 5 分钟快速上手指南 | 新用户 |
 | **🤖 MCP 相关文档** | | |
 | [QUICKSTART_MCP.md](QUICKSTART_MCP.md) | 🤖 MCP 5分钟快速开始 | **MCP 新用户** |
+| [VOLUNTEER_ANALYSIS_PROMPTS.md](VOLUNTEER_ANALYSIS_PROMPTS.md) | 🎯 同工服侍分析提示词指南（新！） | **教会管理者** |
 | [docs/MCP_DESIGN.md](docs/MCP_DESIGN.md) | 🏗️ MCP 架构设计方案（1300+ 行） | **开发者** |
 | [docs/MCP_DEPLOYMENT.md](docs/MCP_DEPLOYMENT.md) | ☁️ MCP 部署完整指南 | **MCP 部署人员** |
 | [docs/MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) | 🔌 MCP 集成指南 | **API 使用者** |

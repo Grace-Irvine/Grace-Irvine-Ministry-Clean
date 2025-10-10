@@ -177,7 +177,7 @@ server = Server("ministry-data-mcp")
 async def handle_list_tools() -> list[types.Tool]:
     """列出所有可用工具"""
     return [
-        # ========== 查询工具（常用） ==========
+        # ========== 查询工具 ==========
         types.Tool(
             name="query_volunteers_by_date",
             description="查询指定日期的同工服侍安排（如：下个主日的服侍人员）",
@@ -250,103 +250,6 @@ async def handle_list_tools() -> list[types.Tool]:
             meta={
                 "openai/toolInvocation/invoking": "正在查询日期范围...",
                 "openai/toolInvocation/invoked": "查询完成"
-            }
-        ),
-        
-        # ========== 数据管理工具（管理员使用） ==========
-        types.Tool(
-            name="clean_ministry_data",
-            description="[管理员] 触发数据清洗管线，从原始层读取数据并清洗标准化",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "dry_run": {
-                        "type": "boolean",
-                        "description": "是否为测试模式（不写入Google Sheets）",
-                        "default": False
-                    }
-                }
-            },
-            meta={
-                "openai/toolInvocation/invoking": "正在清洗数据...",
-                "openai/toolInvocation/invoked": "清洗完成"
-            }
-        ),
-        types.Tool(
-            name="generate_service_layer",
-            description="[管理员] 生成或更新服务层领域数据（sermon 和 volunteer 域）",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "domains": {
-                        "type": "array",
-                        "items": {"type": "string", "enum": ["sermon", "volunteer"]},
-                        "description": "要生成的领域列表",
-                        "default": ["sermon", "volunteer"]
-                    },
-                    "generate_all_years": {
-                        "type": "boolean",
-                        "description": "是否生成所有年份的数据",
-                        "default": True
-                    },
-                    "upload_to_bucket": {
-                        "type": "boolean",
-                        "description": "是否上传到 Cloud Storage",
-                        "default": True
-                    }
-                }
-            },
-            meta={
-                "openai/toolInvocation/invoking": "正在生成服务层...",
-                "openai/toolInvocation/invoked": "生成完成"
-            }
-        ),
-        types.Tool(
-            name="validate_raw_data",
-            description="[管理员] 校验原始数据质量，检查必填字段、格式错误等（不执行清洗）",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "check_duplicates": {
-                        "type": "boolean",
-                        "description": "是否检查重复记录",
-                        "default": True
-                    },
-                    "generate_report": {
-                        "type": "boolean",
-                        "description": "是否生成详细报告",
-                        "default": True
-                    }
-                }
-            },
-            meta={
-                "openai/toolInvocation/invoking": "正在验证数据...",
-                "openai/toolInvocation/invoked": "验证完成"
-            }
-        ),
-        types.Tool(
-            name="sync_from_gcs",
-            description="[管理员] 从 Google Cloud Storage 同步最新的服务层数据到本地",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "domains": {
-                        "type": "array",
-                        "items": {"type": "string", "enum": ["sermon", "volunteer"]},
-                        "description": "要同步的领域",
-                        "default": ["sermon", "volunteer"]
-                    },
-                    "versions": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "要同步的版本列表（如 ['latest', '2025', '2024']）",
-                        "default": ["latest"]
-                    }
-                }
-            },
-            meta={
-                "openai/toolInvocation/invoking": "正在同步数据...",
-                "openai/toolInvocation/invoked": "同步完成"
             }
         )
     ]
@@ -1013,14 +916,52 @@ async def handle_list_prompts() -> list[types.Prompt]:
             ]
         ),
         types.Prompt(
-            name="check_data_quality",
-            description="检查数据质量和完整性",
-            arguments=[]
+            name="analyze_next_sunday_volunteers",
+            description="分析下周日有哪些同工服侍",
+            arguments=[
+                types.PromptArgument(
+                    name="date",
+                    description="下周日日期（YYYY-MM-DD），如不提供则自动计算",
+                    required=False
+                )
+            ]
         ),
         types.Prompt(
-            name="suggest_alias_merges",
-            description="建议可能需要合并的人员别名",
-            arguments=[]
+            name="analyze_recent_volunteer_roles",
+            description="分析最近几周哪些同工在不同的事工岗位服事",
+            arguments=[
+                types.PromptArgument(
+                    name="weeks",
+                    description="要分析的周数（默认4周）",
+                    required=False
+                ),
+                types.PromptArgument(
+                    name="end_date",
+                    description="结束日期（YYYY-MM-DD），默认为今天",
+                    required=False
+                )
+            ]
+        ),
+        types.Prompt(
+            name="analyze_volunteer_frequency",
+            description="分析同工服侍频率，找出服侍过多或过少的同工",
+            arguments=[
+                types.PromptArgument(
+                    name="year",
+                    description="要分析的年份（如2025），默认当前年份",
+                    required=False
+                ),
+                types.PromptArgument(
+                    name="start_date",
+                    description="开始日期（YYYY-MM-DD），可选",
+                    required=False
+                ),
+                types.PromptArgument(
+                    name="end_date",
+                    description="结束日期（YYYY-MM-DD），可选",
+                    required=False
+                )
+            ]
         )
     ]
 
@@ -1167,6 +1108,181 @@ async def handle_get_prompt(
         
         return types.GetPromptResult(
             description="建议别名合并",
+            messages=[
+                types.PromptMessage(
+                    role="user",
+                    content=types.TextContent(
+                        type="text",
+                        text=prompt_text
+                    )
+                )
+            ]
+        )
+    
+    elif name == "analyze_next_sunday_volunteers":
+        # 计算下周日日期
+        date = arguments.get("date")
+        if not date:
+            from datetime import datetime, timedelta
+            today = datetime.now()
+            # 计算下周日 (下一个Sunday是0)
+            days_until_sunday = (6 - today.weekday()) % 7
+            if days_until_sunday == 0:
+                days_until_sunday = 7  # 如果今天是周日，则指向下周日
+            next_sunday = today + timedelta(days=days_until_sunday)
+            date = next_sunday.strftime("%Y-%m-%d")
+        
+        prompt_text = f"""请分析下周日（{date}）的同工服侍安排：
+
+1. 列出所有服侍岗位及对应的同工
+   - 敬拜主领 (worship_lead)
+   - 敬拜同工 (worship_team)
+   - 音响 (audio)
+   - 投影 (projection)
+   - 录影 (video)
+   - 直播 (streaming)
+   - 翻译 (translation)
+   - 招待 (greeter)
+   - 司事 (usher)
+   - 儿童主日学 (sunday_school)
+   - 安全 (security)
+   - 其他岗位
+
+2. 统计服侍人数和岗位覆盖情况
+
+3. 识别空缺岗位（如果有）
+
+4. 列出每位同工的具体服侍内容
+
+请使用以下工具：
+- query_volunteers_by_date(date="{date}")
+"""
+        
+        return types.GetPromptResult(
+            description=f"分析下周日（{date}）同工服侍安排",
+            messages=[
+                types.PromptMessage(
+                    role="user",
+                    content=types.TextContent(
+                        type="text",
+                        text=prompt_text
+                    )
+                )
+            ]
+        )
+    
+    elif name == "analyze_recent_volunteer_roles":
+        weeks = arguments.get("weeks", "4")
+        end_date = arguments.get("end_date")
+        
+        if not end_date:
+            from datetime import datetime
+            end_date = datetime.now().strftime("%Y-%m-%d")
+        
+        # 计算起始日期
+        from datetime import datetime, timedelta
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+        start = end - timedelta(weeks=int(weeks))
+        start_date = start.strftime("%Y-%m-%d")
+        
+        prompt_text = f"""请分析最近 {weeks} 周（{start_date} 至 {end_date}）同工在不同事工岗位的服侍情况：
+
+1. 列出每位同工的服侍记录，包括：
+   - 同工姓名
+   - 服侍日期
+   - 服侍岗位
+   - 服侍次数
+
+2. 识别"多面手"同工：
+   - 在多个不同岗位服侍的同工
+   - 列出每位同工服侍过的岗位清单
+   - 统计每位同工服侍的岗位数量
+
+3. 岗位轮换分析：
+   - 哪些同工固定在同一岗位
+   - 哪些同工在不同岗位轮换
+   - 分析轮换模式是否合理
+
+4. 提供改进建议：
+   - 是否有同工可以培训到其他岗位
+   - 是否有岗位过于依赖个别同工
+
+请使用以下工具：
+- query_date_range(start_date="{start_date}", end_date="{end_date}", domain="volunteer")
+"""
+        
+        return types.GetPromptResult(
+            description=f"分析最近 {weeks} 周同工岗位分布",
+            messages=[
+                types.PromptMessage(
+                    role="user",
+                    content=types.TextContent(
+                        type="text",
+                        text=prompt_text
+                    )
+                )
+            ]
+        )
+    
+    elif name == "analyze_volunteer_frequency":
+        year = arguments.get("year")
+        start_date = arguments.get("start_date")
+        end_date = arguments.get("end_date")
+        
+        if not year and not start_date:
+            from datetime import datetime
+            year = str(datetime.now().year)
+        
+        # 构建查询参数说明
+        if start_date and end_date:
+            date_range_text = f"{start_date} 至 {end_date}"
+            query_instruction = f'query_date_range(start_date="{start_date}", end_date="{end_date}", domain="volunteer")'
+        elif year:
+            date_range_text = f"{year} 年"
+            query_instruction = f'ministry://volunteer/assignments?year={year}'
+        else:
+            date_range_text = "指定时间段"
+            query_instruction = 'ministry://volunteer/assignments'
+        
+        prompt_text = f"""请分析{date_range_text}的同工服侍频率：
+
+1. 统计每位同工的服侍次数和频率：
+   - 总服侍次数
+   - 平均服侍频率（每月服侍几次）
+   - 最近一次服侍日期
+   - 服侍的岗位分布
+
+2. 服侍负担分析：
+   - 识别服侍过多的同工（可能需要减轻负担）
+     * 每月服侍超过2次的同工
+     * 连续多周服侍的同工
+   - 识别服侍较少的同工（可以增加服侍机会）
+     * 每月服侍少于1次的同工
+     * 长时间未服侍的同工
+
+3. 均衡性评估：
+   - 计算服侍次数的标准差和分布
+   - 评估当前排班是否均衡
+   - 计算理想的服侍频率范围
+
+4. 改进建议：
+   - 建议如何调整排班使其更均衡
+   - 识别可以增加服侍的同工
+   - 识别需要适当休息的同工
+   - 建议新同工培训计划
+
+5. 按岗位分析：
+   - 每个岗位的同工人数
+   - 每个岗位的平均服侍频率
+   - 识别人手不足的岗位
+
+请使用以下资源：
+- {query_instruction}
+- ministry://stats/volunteers
+"""
+        
+        return types.GetPromptResult(
+            description=f"分析{date_range_text}同工服侍频率",
             messages=[
                 types.PromptMessage(
                     role="user",

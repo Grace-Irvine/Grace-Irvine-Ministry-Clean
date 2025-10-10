@@ -2,7 +2,6 @@
 """
 FastAPI 应用 - 提供数据清洗 API 和定时任务触发端点
 支持 Google Cloud Run 部署和 Cloud Scheduler 定时触发
-同时提供 MCP (Model Context Protocol) 兼容的 API 端点
 """
 
 import os
@@ -34,7 +33,7 @@ logger = logging.getLogger(__name__)
 # FastAPI 应用
 app = FastAPI(
     title="Church Ministry Data Cleaning API",
-    description="数据清洗管线 API - 支持 MCP (Model Context Protocol)",
+    description="数据清洗管线 API",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
@@ -79,7 +78,7 @@ class HealthResponse(BaseModel):
 
 
 class DataQueryRequest(BaseModel):
-    """数据查询请求（MCP 兼容）"""
+    """数据查询请求"""
     date_from: Optional[str] = None
     date_to: Optional[str] = None
     preacher: Optional[str] = None
@@ -434,7 +433,7 @@ async def clean_data(request: CleaningRequest):
 @app.get("/api/v1/preview")
 async def get_preview():
     """
-    获取最近一次清洗的预览数据（MCP 兼容）
+    获取最近一次清洗的预览数据
     """
     preview_path = Path('logs/clean_preview.json')
     
@@ -464,7 +463,7 @@ async def get_preview():
 @app.post("/api/v1/query")
 async def query_data(request: DataQueryRequest):
     """
-    查询清洗后的数据（MCP 兼容）
+    查询清洗后的数据
     支持按日期范围、讲员等条件过滤
     """
     preview_path = Path('logs/clean_preview.json')
@@ -511,7 +510,7 @@ async def query_data(request: DataQueryRequest):
 @app.get("/api/v1/stats")
 async def get_statistics():
     """
-    获取数据统计信息（MCP 兼容）
+    获取数据统计信息
     """
     preview_path = Path('logs/clean_preview.json')
     
@@ -802,7 +801,7 @@ async def get_volunteer_data(
 
 
 # ============================================================
-# 高级查询端点 (MCP Resources)
+# 高级查询端点
 # ============================================================
 
 @app.get("/api/v1/sermon/by-preacher/{preacher_name}")
@@ -1150,7 +1149,7 @@ async def get_volunteer_availability(year_month: str):
 
 
 # ============================================================
-# 统计分析端点 (MCP Resources)
+# 统计分析端点
 # ============================================================
 
 @app.get("/api/v1/stats/preachers")
@@ -1352,7 +1351,7 @@ async def get_volunteer_stats(year: Optional[int] = None):
 
 
 # ============================================================
-# 别名管理端点 (MCP Tools & Resources)
+# 别名管理端点
 # ============================================================
 
 @app.get("/api/v1/config/aliases")
@@ -1562,7 +1561,7 @@ async def merge_aliases(request: AliasMergeRequest):
 
 
 # ============================================================
-# 数据验证和管线状态端点 (MCP Tools)
+# 数据验证和管线状态端点
 # ============================================================
 
 @app.post("/api/v1/validate")
@@ -1737,7 +1736,7 @@ async def get_pipeline_status(last_n_runs: int = 10):
 
 
 # ============================================================
-# 同工元数据端点 (MCP Resources & Tools)
+# 同工元数据端点
 # ============================================================
 
 @app.get("/api/v1/volunteer/metadata")
@@ -2411,70 +2410,6 @@ async def get_volunteer_suggestions(request: SuggestionRequest):
             status_code=500,
             detail=f"获取排班建议失败: {str(e)}"
         )
-
-
-# ============================================================
-# MCP Tools Definition (用于 MCP 客户端)
-# ============================================================
-
-@app.get("/mcp/tools")
-async def get_mcp_tools():
-    """
-    返回 MCP 工具定义
-    让 MCP 客户端了解可用的 API 工具
-    """
-    return {
-        "tools": [
-            {
-                "name": "query_ministry_data",
-                "description": "查询教会主日事工数据，支持按日期范围、讲员等条件过滤",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "date_from": {
-                            "type": "string",
-                            "description": "开始日期 (YYYY-MM-DD)"
-                        },
-                        "date_to": {
-                            "type": "string",
-                            "description": "结束日期 (YYYY-MM-DD)"
-                        },
-                        "preacher": {
-                            "type": "string",
-                            "description": "讲员名称（支持部分匹配）"
-                        },
-                        "limit": {
-                            "type": "integer",
-                            "description": "返回记录数上限",
-                            "default": 100
-                        }
-                    }
-                }
-            },
-            {
-                "name": "get_ministry_stats",
-                "description": "获取教会主日事工数据的统计信息",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {}
-                }
-            },
-            {
-                "name": "trigger_data_cleaning",
-                "description": "触发数据清洗任务，更新清洗后的数据",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "dry_run": {
-                            "type": "boolean",
-                            "description": "是否为测试模式（不写入 Google Sheets）",
-                            "default": False
-                        }
-                    }
-                }
-            }
-        ]
-    }
 
 
 # ============================================================
