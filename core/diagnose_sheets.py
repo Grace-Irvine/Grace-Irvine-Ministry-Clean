@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scripts.gsheet_utils import GSheetClient
+from core.gsheet_utils import GSheetClient
 
 
 def diagnose_sheet(client, sheet_url, sheet_name):

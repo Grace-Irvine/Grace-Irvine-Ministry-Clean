@@ -14,7 +14,7 @@ from collections import Counter
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scripts.cleaning_rules import CleaningRules
+from core.cleaning_rules import CleaningRules
 
 
 def extract_people_from_excel(excel_path: str, config_path: str = "config/config.json") -> List[Tuple[str, int]]:

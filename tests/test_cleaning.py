@@ -12,9 +12,9 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from scripts.cleaning_rules import CleaningRules
-from scripts.alias_utils import AliasMapper
-from scripts.validators import DataValidator
+from core.cleaning_rules import CleaningRules
+from core.alias_utils import AliasMapper
+from core.validators import DataValidator
 
 
 @pytest.fixture

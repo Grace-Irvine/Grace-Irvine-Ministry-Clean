@@ -16,12 +16,12 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import pandas as pd
 
-# 添加脚本目录到 Python 路径
-sys.path.insert(0, str(Path(__file__).parent))
+# 添加项目根目录到 Python 路径
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scripts.clean_pipeline import CleaningPipeline
-from scripts.change_detector import ChangeDetector
-from scripts.service_layer import ServiceLayerManager
+from core.clean_pipeline import CleaningPipeline
+from core.change_detector import ChangeDetector
+from core.service_layer import ServiceLayerManager
 
 # 配置日志
 logging.basicConfig(

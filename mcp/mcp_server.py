@@ -13,8 +13,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
-# 添加项目路径
-sys.path.insert(0, str(Path(__file__).parent))
+# 添加项目根目录到 Python 路径
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # MCP SDK imports
 from mcp.server.models import InitializationOptions
@@ -23,8 +23,8 @@ import mcp.server.stdio
 import mcp.types as types
 
 # 导入应用层代码
-from scripts.clean_pipeline import CleaningPipeline
-from scripts.service_layer import ServiceLayerManager
+from core.clean_pipeline import CleaningPipeline
+from core.service_layer import ServiceLayerManager
 
 # 配置日志
 logging.basicConfig(
