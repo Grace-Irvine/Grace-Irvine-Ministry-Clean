@@ -189,7 +189,7 @@ echo -e "${GREEN}========================================${NC}"
 
 if [ -n "$MCP_BEARER_TOKEN" ]; then
     echo -e "\n${YELLOW}1. For Claude Desktop (macOS/Linux):${NC}"
-    echo "   Add to ~/.config/Claude/claude_desktop_config.json:"
+    echo "   Add to ~/Library/Application Support/Claude/claude_desktop_config.json:"
     cat <<EOF
 
 {
