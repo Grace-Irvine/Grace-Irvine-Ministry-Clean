@@ -166,7 +166,11 @@ def get_role_display_name(role: str) -> str:
     
     # 如果在配置中找到了映射，使用配置的名称
     if role in columns_mapping:
-        return columns_mapping[role]
+        display_name = columns_mapping[role]
+        # 如果需要移除数字后缀（如 "敬拜同工1" -> "敬拜同工"）
+        # 使用正则表达式移除末尾的数字
+        import re
+        return re.sub(r'\d+$', '', display_name)
     
     # 兜底映射（用于处理一些特殊情况或历史数据）
     # 包含通用字段名称和部门级别的映射
@@ -185,6 +189,12 @@ def get_role_display_name(role: str) -> str:
         'team': '同工',
         'lead': '主领'
     }
+    
+    # 尝试移除数字后缀后再查找
+    import re
+    base_role = re.sub(r'_?\d+$', '', role)
+    if base_role in fallback_mapping:
+        return fallback_mapping[base_role]
     
     return fallback_mapping.get(role, role)
 
@@ -290,8 +300,6 @@ def format_volunteer_record(record: Dict) -> str:
             names = [member.get('name', 'N/A') for member in team if isinstance(member, dict)]
             if names:
                 role_display = get_role_display_name('worship_team_1')
-                # 移除数字后缀以获得通用名称
-                role_display = role_display.rstrip('12')
                 lines.append(f"  • {role_display}: {', '.join(names)}")
         
         # 司琴
@@ -304,29 +312,47 @@ def format_volunteer_record(record: Dict) -> str:
     technical = record.get('technical', {})
     if technical:
         dept_name = departments.get('technical', {}).get('name', '技术团队')
-        lines.append(f"\n🔧 {dept_name}:")
         
         # 动态处理所有技术岗位
         technical_roles = departments.get('technical', {}).get('roles', [])
+        technical_members = []
         for role_key in technical_roles:
             person = technical.get(role_key, {})
             if person and person.get('name'):
                 role_display = get_role_display_name(role_key)
-                lines.append(f"  • {role_display}: {person['name']}")
+                technical_members.append(f"  • {role_display}: {person['name']}")
+        
+        # 只有当有成员时才显示部门标题
+        if technical_members:
+            lines.append(f"\n🔧 {dept_name}:")
+            lines.extend(technical_members)
     
     # 处理儿童部
     education = record.get('education', {})
     if education:
         dept_name = departments.get('education', {}).get('name', '儿童部')
-        lines.append(f"\n👶 {dept_name}:")
+        education_members = []
         
-        # 动态处理所有儿童部岗位
-        education_roles = departments.get('education', {}).get('roles', [])
-        for role_key in education_roles:
-            person = education.get(role_key, {})
-            if person and person.get('name'):
-                role_display = get_role_display_name(role_key)
-                lines.append(f"  • {role_display}: {person['name']}")
+        # 处理 assistants 数组（新的数据结构）
+        assistants = education.get('assistants', [])
+        if assistants and isinstance(assistants, list):
+            names = [assistant.get('name', 'N/A') for assistant in assistants if isinstance(assistant, dict) and assistant.get('name')]
+            if names:
+                role_display = get_role_display_name('assistant_1')
+                education_members.append(f"  • {role_display}: {', '.join(names)}")
+        else:
+            # 兼容旧的数据结构（单独的 assistant_1, assistant_2, assistant_3）
+            education_roles = departments.get('education', {}).get('roles', [])
+            for role_key in education_roles:
+                person = education.get(role_key, {})
+                if person and person.get('name'):
+                    role_display = get_role_display_name(role_key)
+                    education_members.append(f"  • {role_display}: {person['name']}")
+        
+        # 只有当有成员时才显示部门标题
+        if education_members:
+            lines.append(f"\n👶 {dept_name}:")
+            lines.extend(education_members)
     
     # 处理其他未分类的字段
     skip_keys = ['service_date', 'service_week', 'service_slot', 'worship', 'technical', 'education', 'source_row', 'updated_at']
@@ -393,6 +419,9 @@ def extract_all_roles_from_volunteer_records(volunteers: List[Dict]) -> Dict[str
     """
     role_map = {}
     
+    # 获取配置中的部门信息
+    departments = CONFIG.get('departments', {})
+    
     for record in volunteers:
         service_date = record.get('service_date', '')
         
@@ -439,7 +468,9 @@ def extract_all_roles_from_volunteer_records(volunteers: List[Dict]) -> Dict[str
         # 处理 technical 组
         technical = record.get('technical', {})
         if technical:
-            for tech_role in ['audio', 'video', 'propresenter_play', 'propresenter_update']:
+            # 从配置中动态获取所有技术岗位
+            technical_roles = departments.get('technical', {}).get('roles', [])
+            for tech_role in technical_roles:
                 person = technical.get(tech_role, {})
                 if person and person.get('id'):
                     if tech_role not in role_map:
@@ -1622,6 +1653,9 @@ async def handle_call_tool(
                 volunteers = volunteer_data.get("volunteers", [])
                 sermons = sermon_data.get("sermons", [])
                 
+                # 获取配置中的部门信息
+                departments = CONFIG.get('departments', {})
+                
                 # 筛选未来日期
                 future_volunteers = [
                     v for v in volunteers 
@@ -1670,7 +1704,9 @@ async def handle_call_tool(
                     # 检查技术相关岗位
                     technical = record.get("technical", {})
                     if technical:
-                        for tech_role in ['audio', 'video', 'propresenter_play', 'propresenter_update']:
+                        # 从配置中动态获取所有技术岗位
+                        technical_roles = departments.get('technical', {}).get('roles', [])
+                        for tech_role in technical_roles:
                             person = technical.get(tech_role, {})
                             if not person.get("id"):
                                 gaps.append({
@@ -1791,24 +1827,32 @@ async def handle_call_tool(
                 volunteer = day_volunteers[0]
                 text_lines.append("\n👥 同工安排:")
                 
+                # 获取配置中的部门信息
+                departments = CONFIG.get('departments', {})
+                
                 # 敬拜团队
                 worship = volunteer.get('worship', {})
                 if worship:
                     text_lines.append("  🎵 敬拜团队:")
                     if worship.get('lead', {}).get('name'):
-                        text_lines.append(f"    • 主领: {worship['lead']['name']}")
+                        role_display = get_role_display_name('worship_lead')
+                        text_lines.append(f"    • {role_display}: {worship['lead']['name']}")
                     if worship.get('team'):
                         names = [m.get('name') for m in worship['team'] if m.get('name')]
                         if names:
-                            text_lines.append(f"    • 同工: {', '.join(names)}")
+                            role_display = get_role_display_name('worship_team_1')
+                            text_lines.append(f"    • {role_display}: {', '.join(names)}")
                     if worship.get('pianist', {}).get('name'):
-                        text_lines.append(f"    • 司琴: {worship['pianist']['name']}")
+                        role_display = get_role_display_name('pianist')
+                        text_lines.append(f"    • {role_display}: {worship['pianist']['name']}")
                 
                 # 媒体团队
                 technical = volunteer.get('technical', {})
                 if technical:
                     text_lines.append("  📺 媒体团队:")
-                    for tech_role in ['audio', 'video', 'propresenter_play', 'propresenter_update']:
+                    # 从配置中动态获取所有技术岗位
+                    technical_roles = departments.get('technical', {}).get('roles', [])
+                    for tech_role in technical_roles:
                         person = technical.get(tech_role, {})
                         if person.get('name'):
                             role_display_name = get_role_display_name(tech_role)

@@ -11,7 +11,7 @@ set -e  # 遇到错误立即退出
 # 项目配置
 PROJECT_ID="${GCP_PROJECT_ID:-ai-for-god}"
 REGION="${GCP_REGION:-us-central1}"
-SERVICE_NAME="ministry-data-api"
+SERVICE_NAME="ministry-data-cleaning"
 
 # 容器镜像配置
 IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
@@ -112,7 +112,7 @@ fi
 # 5. 构建容器镜像
 print_header "5. 构建 Docker 镜像"
 echo "使用 Dockerfile: $DOCKERFILE_PATH"
-gcloud builds submit --tag "$IMAGE_NAME" --file="$DOCKERFILE_PATH" .
+gcloud builds submit --config=api/cloudbuild.yaml --timeout=10m .
 
 # 6. 部署到 Cloud Run
 print_header "6. 部署到 Cloud Run"
