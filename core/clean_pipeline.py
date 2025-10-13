@@ -24,6 +24,7 @@ from core.alias_utils import AliasMapper
 from core.cleaning_rules import CleaningRules
 from core.validators import DataValidator
 from core.service_layer import ServiceLayerManager
+from core.schema_manager import SchemaManager
 
 
 # 配置日志
@@ -41,17 +42,21 @@ class CleaningPipeline:
     OUTPUT_SCHEMA = [
         'service_date', 'service_week', 'service_slot',
         'sermon_title', 'series', 'scripture',
-        'preacher_id', 'preacher_name',
+        'preacher_id', 'preacher_name', 'preacher_department',
         'catechism', 'reading',
-        'worship_lead_id', 'worship_lead_name',
-        'worship_team_ids', 'worship_team_names',
-        'pianist_id', 'pianist_name',
+        'worship_lead_id', 'worship_lead_name', 'worship_lead_department',
+        'worship_team_1_id', 'worship_team_1_name', 'worship_team_1_department',
+        'worship_team_2_id', 'worship_team_2_name', 'worship_team_2_department',
+        'pianist_id', 'pianist_name', 'pianist_department',
         'songs',
-        'audio_id', 'audio_name',
-        'video_id', 'video_name',
-        'propresenter_play_id', 'propresenter_play_name',
-        'propresenter_update_id', 'propresenter_update_name',
-        'assistant_id', 'assistant_name',
+        'audio_id', 'audio_name', 'audio_department',
+        'video_id', 'video_name', 'video_department',
+        'propresenter_play_id', 'propresenter_play_name', 'propresenter_play_department',
+        'propresenter_update_id', 'propresenter_update_name', 'propresenter_update_department',
+        'video_editor_id', 'video_editor_name', 'video_editor_department',
+        'assistant_1_id', 'assistant_1_name', 'assistant_1_department',
+        'assistant_2_id', 'assistant_2_name', 'assistant_2_department',
+        'assistant_3_id', 'assistant_3_name', 'assistant_3_department',
         'notes', 'source_row', 'updated_at'
     ]
     
@@ -67,6 +72,10 @@ class CleaningPipeline:
         self.alias_mapper = AliasMapper()
         self.cleaning_rules = CleaningRules(self.config['cleaning_rules'])
         self.validator = DataValidator(self.config)
+        self.schema_manager = SchemaManager(self.config)
+        
+        # 存储部门映射信息
+        self.department_map = {}
         
         # 加载别名映射
         self._load_aliases()
@@ -103,12 +112,43 @@ class CleaningPipeline:
         source_config = self.config['source_sheet']
         logger.info(f"读取原始数据: {source_config['range']}")
         
-        df = self.gsheet_client.read_range(
-            source_config['url'],
-            source_config['range']
-        )
+        # 检查是否需要获取部门信息
+        has_departments = 'departments' in self.config and self.config['departments']
+        
+        if has_departments:
+            df, self.department_map = self.gsheet_client.read_range(
+                source_config['url'],
+                source_config['range'],
+                return_department_info=True
+            )
+            logger.info(f"检测到部门信息: {len(self.department_map)} 列有部门标注")
+        else:
+            df = self.gsheet_client.read_range(
+                source_config['url'],
+                source_config['range']
+            )
         
         logger.info(f"成功读取 {len(df)} 行原始数据")
+        
+        # 检测新列
+        new_columns = self.schema_manager.detect_new_columns(df.columns.tolist())
+        if new_columns:
+            logger.warning(f"检测到 {len(new_columns)} 个未配置的列: {', '.join(new_columns)}")
+            
+            # 生成配置建议
+            suggestions = self.schema_manager.generate_config_suggestions(
+                new_columns, 
+                self.department_map
+            )
+            
+            # 保存到日志目录
+            suggestion_file = Path('logs/schema_suggestions.json')
+            suggestion_file.parent.mkdir(exist_ok=True)
+            with open(suggestion_file, 'w', encoding='utf-8') as f:
+                json.dump(suggestions, f, ensure_ascii=False, indent=2)
+            
+            logger.info(f"配置建议已保存到: {suggestion_file}")
+        
         return df
     
     def clean_data(self, raw_df: pd.DataFrame) -> pd.DataFrame:
@@ -150,10 +190,13 @@ class CleaningPipeline:
     
     def _map_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """映射列名（从中文到英文标准名）"""
-        column_mapping = self.config['columns']
+        # 使用 SchemaManager 构建反向映射
+        reverse_mapping = {}
         
-        # 反向映射：中文 -> 英文
-        reverse_mapping = {v: k for k, v in column_mapping.items()}
+        for field_name, mapping in self.schema_manager.field_to_mapping_map.items():
+            # 将每个源列名映射到标准字段名
+            for source_col in mapping.sources:
+                reverse_mapping[source_col] = field_name
         
         # 重命名存在的列
         df = df.rename(columns=reverse_mapping)
@@ -204,26 +247,35 @@ class CleaningPipeline:
         preacher_id, preacher_display = self.alias_mapper.resolve(preacher_name)
         cleaned['preacher_id'] = preacher_id
         cleaned['preacher_name'] = preacher_display
+        cleaned['preacher_department'] = self.schema_manager.get_department('preacher') or ''
         
         # 敬拜带领
         worship_lead_name = self.cleaning_rules.clean_name(row.get('worship_lead'))
         worship_lead_id, worship_lead_display = self.alias_mapper.resolve(worship_lead_name)
         cleaned['worship_lead_id'] = worship_lead_id
         cleaned['worship_lead_name'] = worship_lead_display
+        cleaned['worship_lead_department'] = self.schema_manager.get_department('worship_lead') or ''
         
-        # 敬拜同工（合并多列）
-        worship_team_names = self.cleaning_rules.merge_columns(
-            row, ['worship_team_1', 'worship_team_2']
-        )
-        worship_team_ids, worship_team_displays = self.alias_mapper.resolve_list(worship_team_names)
-        cleaned['worship_team_ids'] = json.dumps(worship_team_ids, ensure_ascii=False) if worship_team_ids else ''
-        cleaned['worship_team_names'] = json.dumps(worship_team_displays, ensure_ascii=False) if worship_team_displays else ''
+        # 敬拜同工1
+        worship_team_1_name = self.cleaning_rules.clean_name(row.get('worship_team_1'))
+        worship_team_1_id, worship_team_1_display = self.alias_mapper.resolve(worship_team_1_name)
+        cleaned['worship_team_1_id'] = worship_team_1_id
+        cleaned['worship_team_1_name'] = worship_team_1_display
+        cleaned['worship_team_1_department'] = self.schema_manager.get_department('worship_team_1') or ''
+        
+        # 敬拜同工2
+        worship_team_2_name = self.cleaning_rules.clean_name(row.get('worship_team_2'))
+        worship_team_2_id, worship_team_2_display = self.alias_mapper.resolve(worship_team_2_name)
+        cleaned['worship_team_2_id'] = worship_team_2_id
+        cleaned['worship_team_2_name'] = worship_team_2_display
+        cleaned['worship_team_2_department'] = self.schema_manager.get_department('worship_team_2') or ''
         
         # 司琴
         pianist_name = self.cleaning_rules.clean_name(row.get('pianist'))
         pianist_id, pianist_display = self.alias_mapper.resolve(pianist_name)
         cleaned['pianist_id'] = pianist_id
         cleaned['pianist_name'] = pianist_display
+        cleaned['pianist_department'] = self.schema_manager.get_department('pianist') or ''
         
         # 歌曲（拆分为列表）
         songs_list = self.cleaning_rules.split_songs(row.get('songs'))
@@ -234,30 +286,56 @@ class CleaningPipeline:
         audio_id, audio_display = self.alias_mapper.resolve(audio_name)
         cleaned['audio_id'] = audio_id
         cleaned['audio_name'] = audio_display
+        cleaned['audio_department'] = self.schema_manager.get_department('audio') or ''
         
         # 导播/摄影
         video_name = self.cleaning_rules.clean_name(row.get('video'))
         video_id, video_display = self.alias_mapper.resolve(video_name)
         cleaned['video_id'] = video_id
         cleaned['video_name'] = video_display
+        cleaned['video_department'] = self.schema_manager.get_department('video') or ''
         
         # ProPresenter 播放
         pp_play_name = self.cleaning_rules.clean_name(row.get('propresenter_play'))
         pp_play_id, pp_play_display = self.alias_mapper.resolve(pp_play_name)
         cleaned['propresenter_play_id'] = pp_play_id
         cleaned['propresenter_play_name'] = pp_play_display
+        cleaned['propresenter_play_department'] = self.schema_manager.get_department('propresenter_play') or ''
         
         # ProPresenter 更新
         pp_update_name = self.cleaning_rules.clean_name(row.get('propresenter_update'))
         pp_update_id, pp_update_display = self.alias_mapper.resolve(pp_update_name)
         cleaned['propresenter_update_id'] = pp_update_id
         cleaned['propresenter_update_name'] = pp_update_display
+        cleaned['propresenter_update_department'] = self.schema_manager.get_department('propresenter_update') or ''
         
-        # 助教
-        assistant_name = self.cleaning_rules.clean_name(row.get('assistant'))
-        assistant_id, assistant_display = self.alias_mapper.resolve(assistant_name)
-        cleaned['assistant_id'] = assistant_id
-        cleaned['assistant_name'] = assistant_display
+        # 视频编辑
+        video_editor_name = self.cleaning_rules.clean_name(row.get('video_editor'))
+        video_editor_id, video_editor_display = self.alias_mapper.resolve(video_editor_name)
+        cleaned['video_editor_id'] = video_editor_id
+        cleaned['video_editor_name'] = video_editor_display
+        cleaned['video_editor_department'] = self.schema_manager.get_department('video_editor') or ''
+        
+        # 助教1
+        assistant_1_name = self.cleaning_rules.clean_name(row.get('assistant_1'))
+        assistant_1_id, assistant_1_display = self.alias_mapper.resolve(assistant_1_name)
+        cleaned['assistant_1_id'] = assistant_1_id
+        cleaned['assistant_1_name'] = assistant_1_display
+        cleaned['assistant_1_department'] = self.schema_manager.get_department('assistant_1') or ''
+        
+        # 助教2
+        assistant_2_name = self.cleaning_rules.clean_name(row.get('assistant_2'))
+        assistant_2_id, assistant_2_display = self.alias_mapper.resolve(assistant_2_name)
+        cleaned['assistant_2_id'] = assistant_2_id
+        cleaned['assistant_2_name'] = assistant_2_display
+        cleaned['assistant_2_department'] = self.schema_manager.get_department('assistant_2') or ''
+        
+        # 助教3
+        assistant_3_name = self.cleaning_rules.clean_name(row.get('assistant_3'))
+        assistant_3_id, assistant_3_display = self.alias_mapper.resolve(assistant_3_name)
+        cleaned['assistant_3_id'] = assistant_3_id
+        cleaned['assistant_3_name'] = assistant_3_display
+        cleaned['assistant_3_department'] = self.schema_manager.get_department('assistant_3') or ''
         
         # 备注
         cleaned['notes'] = self.cleaning_rules.clean_text(row.get('notes', ''))

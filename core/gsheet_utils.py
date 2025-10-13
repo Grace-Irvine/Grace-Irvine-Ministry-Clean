@@ -5,7 +5,7 @@ Google Sheets 工具模块
 
 import os
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union, Tuple
 import pandas as pd
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -64,16 +64,23 @@ class GSheetClient:
             raise ValueError(f"无法从 URL 提取 Sheet ID: {url}")
         return match.group(1)
     
-    def read_range(self, url: str, range_name: str) -> pd.DataFrame:
+    def read_range(
+        self, 
+        url: str, 
+        range_name: str,
+        return_department_info: bool = False
+    ) -> Union[pd.DataFrame, Tuple[pd.DataFrame, Dict[str, str]]]:
         """
         读取 Google Sheet 指定范围的数据
         
         Args:
             url: Google Sheets URL
             range_name: 范围名称，如 "Sheet1!A1:Z100"
+            return_department_info: 是否返回部门信息（第1行）
             
         Returns:
-            包含数据的 DataFrame
+            如果 return_department_info=True: (DataFrame, column_to_department_map)
+            否则: DataFrame
         """
         sheet_id = self.extract_sheet_id(url)
         
@@ -87,6 +94,9 @@ class GSheetClient:
             
             if not values:
                 raise ValueError(f"指定范围没有数据: {range_name}")
+            
+            # 存储部门映射信息
+            department_map = {}
             
             # 处理可能的两行表头（如果第二行也有列名信息）
             if len(values) >= 2:
@@ -102,7 +112,11 @@ class GSheetClient:
                     
                     # 优先使用第2行的值，如果第2行为空则用第1行
                     if val2 and val2.strip():
-                        headers.append(val2.strip())
+                        col_name = val2.strip()
+                        headers.append(col_name)
+                        # 如果第1行有值，作为部门信息
+                        if val1 and val1.strip() and return_department_info:
+                            department_map[col_name] = val1.strip()
                     elif val1 and val1.strip():
                         headers.append(val1.strip())
                     else:
@@ -118,6 +132,7 @@ class GSheetClient:
                         # 否则只跳过第一行
                         headers = values[0]
                         data_rows = values[1:]
+                        department_map = {}  # 单行表头没有部门信息
                 else:
                     data_rows = values[2:]
             else:
@@ -135,7 +150,10 @@ class GSheetClient:
             
             df = pd.DataFrame(normalized_rows, columns=headers)
             
-            return df
+            if return_department_info:
+                return df, department_map
+            else:
+                return df
             
         except HttpError as e:
             raise RuntimeError(f"读取 Google Sheet 失败: {e}")

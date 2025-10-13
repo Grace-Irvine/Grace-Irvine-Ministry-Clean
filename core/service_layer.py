@@ -214,17 +214,22 @@ class VolunteerDomainTransformer(DomainTransformer):
         Returns:
             同工记录字典
         """
-        # 解析敬拜同工列表
-        worship_team = self._parse_person_list(
-            row.get('worship_team_ids', ''),
-            row.get('worship_team_names', '')
-        )
+        # 解析敬拜同工列表（从独立字段收集）
+        worship_team = []
+        for i in range(1, 3):  # worship_team_1, worship_team_2
+            field_id = f'worship_team_{i}_id'
+            field_name = f'worship_team_{i}_name'
+            person_id = str(row.get(field_id, ''))
+            person_name = str(row.get(field_name, ''))
+            if person_id or person_name:  # 只添加非空的
+                worship_team.append({'id': person_id, 'name': person_name})
         
         volunteer_record = {
             'service_date': str(row.get('service_date', '')),
             'service_week': int(row.get('service_week', 0)) if pd.notna(row.get('service_week')) else None,
             'service_slot': str(row.get('service_slot', '')),
             'worship': {
+                'department': str(row.get('worship_lead_department', '')),
                 'lead': {
                     'id': str(row.get('worship_lead_id', '')),
                     'name': str(row.get('worship_lead_name', ''))
@@ -236,6 +241,7 @@ class VolunteerDomainTransformer(DomainTransformer):
                 }
             },
             'technical': {
+                'department': str(row.get('audio_department', '')),
                 'audio': {
                     'id': str(row.get('audio_id', '')),
                     'name': str(row.get('audio_name', ''))
@@ -251,7 +257,19 @@ class VolunteerDomainTransformer(DomainTransformer):
                 'propresenter_update': {
                     'id': str(row.get('propresenter_update_id', '')),
                     'name': str(row.get('propresenter_update_name', ''))
+                },
+                'video_editor': {
+                    'id': str(row.get('video_editor_id', '')),
+                    'name': str(row.get('video_editor_name', ''))
                 }
+            },
+            'education': {
+                'department': str(row.get('assistant_1_department', '')),
+                'assistants': [
+                    {'id': str(row.get(f'assistant_{i}_id', '')), 'name': str(row.get(f'assistant_{i}_name', ''))}
+                    for i in range(1, 4)  # assistant_1, assistant_2, assistant_3
+                    if row.get(f'assistant_{i}_id') or row.get(f'assistant_{i}_name')
+                ]
             },
             'source_row': int(row.get('source_row', 0)) if pd.notna(row.get('source_row')) else None,
             'updated_at': str(row.get('updated_at', ''))
