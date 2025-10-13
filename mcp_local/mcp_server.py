@@ -181,13 +181,39 @@ def get_role_display_name(role: str) -> str:
         'education': '儿童部',
         'sermon': '讲道部',
         
-        # 通用岗位（不带数字后缀）
-        'worship_team': '敬拜同工',
-        'assistant': '助教',
+        # 讲道相关
+        'preacher': '讲员',
+        'reading': '读经',
+        'series': '讲道系列',
+        'sermon_title': '讲道标题',
+        'scripture': '经文',
+        'catechism': '要理问答',
+        
+        # 敬拜相关
+        'worship_lead': '敬拜带领',
+        'worship_team': '敬拜同工',  # 通用，不带数字
+        'worship_team_1': '敬拜同工1',
+        'worship_team_2': '敬拜同工2',
+        'pianist': '司琴',
+        'songs': '詩歌',
+        
+        # 技术相关
+        'audio': '音控',
+        'video': '导播/摄影',
+        'propresenter_play': 'ProPresenter播放',
+        'propresenter_update': 'ProPresenter更新',
+        'video_editor': '视频剪辑',
+        
+        # 儿童部相关
+        'assistant': '助教',  # 通用，不带数字
+        'assistant_1': '助教1',
+        'assistant_2': '助教2',
+        'assistant_3': '助教3',
         
         # 其他可能的历史字段
         'team': '同工',
-        'lead': '主领'
+        'lead': '主领',
+        'service_date': '主日日期'
     }
     
     # 尝试移除数字后缀后再查找
@@ -318,7 +344,8 @@ def format_volunteer_record(record: Dict) -> str:
         technical_members = []
         for role_key in technical_roles:
             person = technical.get(role_key, {})
-            if person and person.get('name'):
+            # 检查name字段存在且不是空字符串
+            if person and person.get('name') and person['name'].strip():
                 role_display = get_role_display_name(role_key)
                 technical_members.append(f"  • {role_display}: {person['name']}")
         
@@ -1849,14 +1876,20 @@ async def handle_call_tool(
                 # 媒体团队
                 technical = volunteer.get('technical', {})
                 if technical:
-                    text_lines.append("  📺 媒体团队:")
                     # 从配置中动态获取所有技术岗位
                     technical_roles = departments.get('technical', {}).get('roles', [])
+                    technical_members = []
                     for tech_role in technical_roles:
                         person = technical.get(tech_role, {})
-                        if person.get('name'):
+                        # 检查name字段存在且不是空字符串
+                        if person and person.get('name') and person['name'].strip():
                             role_display_name = get_role_display_name(tech_role)
-                            text_lines.append(f"    • {role_display_name}: {person['name']}")
+                            technical_members.append(f"    • {role_display_name}: {person['name']}")
+                    
+                    # 只有当有成员时才显示部门标题
+                    if technical_members:
+                        text_lines.append("  📺 媒体团队:")
+                        text_lines.extend(technical_members)
             else:
                 text_lines.append("\n👥 同工安排: 待定")
             
