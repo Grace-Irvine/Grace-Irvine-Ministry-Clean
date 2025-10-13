@@ -82,7 +82,7 @@ echo -e "${GREEN}✓ APIs enabled${NC}"
 echo -e "\n${GREEN}[3/6] Building Docker image...${NC}"
 echo "  Using Dockerfile: $DOCKERFILE_PATH"
 gcloud builds submit \
-    --config cloudbuild.yaml \
+    --config mcp_local/cloudbuild.yaml \
     --timeout=10m \
     .
 echo -e "${GREEN}✓ Image built: $IMAGE_NAME${NC}"

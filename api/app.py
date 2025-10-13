@@ -633,11 +633,22 @@ async def generate_service_layer(request: ServiceLayerRequest):
                 storage_config = config.get('service_layer', {}).get('storage', {})
                 
                 if storage_config.get('provider') == 'gcs':
-                    from scripts.cloud_storage_utils import DomainStorageManager
+                    from core.cloud_storage_utils import DomainStorageManager
                     
                     bucket_name = storage_config['bucket']
                     base_path = storage_config.get('base_path', 'domains/')
                     service_account_file = storage_config.get('service_account_file')
+                    
+                    # 智能处理服务账号文件路径
+                    # 如果配置的是绝对路径且不存在，尝试使用容器内的路径
+                    if service_account_file and not Path(service_account_file).exists():
+                        # 尝试容器内的路径
+                        container_path = '/app/config/service-account.json'
+                        if Path(container_path).exists():
+                            logger.info(f"使用容器内的服务账号文件: {container_path}")
+                            service_account_file = container_path
+                        else:
+                            logger.warning(f"服务账号文件不存在: {service_account_file}")
                     
                     logger.info(f"上传到 Cloud Storage: gs://{bucket_name}/{base_path}")
                     

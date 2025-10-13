@@ -5,7 +5,9 @@ Google Sheets 工具模块
 
 import os
 import re
+import json
 from typing import List, Dict, Any, Optional, Union, Tuple
+from pathlib import Path
 import pandas as pd
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -22,14 +24,25 @@ class GSheetClient:
         初始化 Google Sheets 客户端
         
         Args:
-            credentials_path: 服务账号 JSON 文件路径，若为 None 则从环境变量读取
+            credentials_path: 服务账号 JSON 文件路径，若为 None 则依次尝试:
+                1. 环境变量 GOOGLE_APPLICATION_CREDENTIALS
+                2. config.json 中的 service_layer.storage.service_account_file
+                3. config/service-account.json (默认路径)
         """
         if credentials_path is None:
+            # 优先使用环境变量
             credentials_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
         
         if not credentials_path:
+            # 尝试从 config.json 读取
+            credentials_path = self._get_credentials_from_config()
+        
+        if not credentials_path:
             raise ValueError(
-                "未找到 Google 凭证。请设置 GOOGLE_APPLICATION_CREDENTIALS 环境变量"
+                "未找到 Google 凭证。请：\n"
+                "1. 设置 GOOGLE_APPLICATION_CREDENTIALS 环境变量，或\n"
+                "2. 在 config.json 的 service_layer.storage.service_account_file 中配置路径，或\n"
+                "3. 将凭证文件放在 config/service-account.json"
             )
         
         if not os.path.exists(credentials_path):
@@ -46,6 +59,47 @@ class GSheetClient:
             raise ValueError(f"无法加载凭证文件 {credentials_path}: {str(e)}")
         self.service = build('sheets', 'v4', credentials=self.credentials)
         self.sheets = self.service.spreadsheets()
+    
+    def _get_credentials_from_config(self) -> Optional[str]:
+        """
+        从配置文件中读取 service account 路径
+        
+        Returns:
+            凭证文件路径，如果未找到则返回 None
+        """
+        # 尝试的配置文件路径列表（按优先级）
+        config_paths = [
+            'config/config.json',
+            '../config/config.json',
+            str(Path(__file__).parent.parent / 'config' / 'config.json')
+        ]
+        
+        for config_path in config_paths:
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    
+                    # 从 service_layer.storage.service_account_file 读取
+                    credentials_path = config.get('service_layer', {}).get('storage', {}).get('service_account_file')
+                    
+                    if credentials_path and os.path.exists(credentials_path):
+                        return credentials_path
+                except Exception:
+                    continue
+        
+        # 尝试默认路径
+        default_paths = [
+            'config/service-account.json',
+            '../config/service-account.json',
+            str(Path(__file__).parent.parent / 'config' / 'service-account.json')
+        ]
+        
+        for default_path in default_paths:
+            if os.path.exists(default_path):
+                return default_path
+        
+        return None
     
     @staticmethod
     def extract_sheet_id(url: str) -> str:
