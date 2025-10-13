@@ -186,6 +186,11 @@ class CleaningPipeline:
         clean_df = self._ensure_schema(clean_df)
         
         logger.info(f"数据清洗完成，共 {len(clean_df)} 行")
+        
+        # 5. 自动同步别名（如果启用）
+        if self.config.get('alias_sources', {}).get('auto_sync', False):
+            self._sync_aliases(clean_df)
+        
         return clean_df
     
     def _map_columns(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -356,6 +361,72 @@ class CleaningPipeline:
         df = df[self.OUTPUT_SCHEMA]
         
         return df
+    
+    def _sync_aliases(self, clean_df: pd.DataFrame) -> None:
+        """
+        自动同步别名到 Google Sheets
+        
+        Args:
+            clean_df: 清洗后的 DataFrame
+        """
+        try:
+            logger.info("=" * 60)
+            logger.info("开始自动同步别名...")
+            
+            # 获取配置
+            alias_config = self.config.get('alias_sources', {})
+            sheet_config = alias_config.get('people_alias_sheet', {})
+            
+            if not sheet_config:
+                logger.warning("未配置 people_alias_sheet，跳过别名同步")
+                return
+            
+            # 获取角色字段列表
+            role_fields = alias_config.get('role_fields', [
+                'preacher', 'reading', 'worship_lead', 'worship_team_1', 'worship_team_2',
+                'pianist', 'audio', 'video', 'propresenter_play', 'propresenter_update',
+                'video_editor', 'assistant_1', 'assistant_2', 'assistant_3'
+            ])
+            
+            # 1. 从清洗后的数据中提取所有人名及其出现次数
+            names_counter = self.alias_mapper.extract_names_from_cleaned_data(
+                clean_df, 
+                role_fields
+            )
+            
+            if not names_counter:
+                logger.info("未找到任何人名，跳过同步")
+                return
+            
+            # 2. 同步到 Google Sheets
+            url = sheet_config['url']
+            range_name = sheet_config['range']
+            
+            stats = self.alias_mapper.sync_to_sheet(
+                self.gsheet_client,
+                url,
+                range_name,
+                names_counter
+            )
+            
+            # 3. 输出统计信息
+            logger.info("=" * 60)
+            logger.info("✅ 别名同步完成！")
+            logger.info(f"   📊 新增: {stats['new_added']} 个名字")
+            logger.info(f"   📊 更新: {stats['updated']} 个名字的统计")
+            logger.info(f"   📊 总计: {len(names_counter)} 个唯一人名")
+            logger.info("=" * 60)
+            
+            if stats['new_added'] > 0:
+                logger.info("💡 提示: 请在 Google Sheets 中检查新增的名字")
+                logger.info("   1. 合并同一人的不同写法（修改 person_id）")
+                logger.info("   2. 设置统一的 display_name")
+                logger.info(f"   3. 表格链接: {url}")
+                logger.info("=" * 60)
+        
+        except Exception as e:
+            logger.warning(f"别名同步失败: {e}", exc_info=True)
+            logger.warning("注意：别名同步失败不影响数据清洗流程")
     
     def validate_data(self, df: pd.DataFrame):
         """校验数据"""

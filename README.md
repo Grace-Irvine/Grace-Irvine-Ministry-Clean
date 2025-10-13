@@ -58,11 +58,12 @@
 
 ### 快速开始
 - 📖 [5分钟快速上手](docs/QUICKSTART.md) - 新用户必读
-- 🏗️ [系统架构](ARCHITECTURE.md) - 架构设计文档
+- 🏗️ [系统架构](docs/ARCHITECTURE.md) - 架构设计文档
 - 📝 [更新日志](CHANGELOG.md) - 版本历史
 
 ### AI 助手集成（MCP）
 - 🤖 [MCP服务器文档](mcp_local/README.md) - 完整使用指南
+- 🔍 [MCP Inspector使用指南](docs/MCP_INSPECTOR.md) - Inspector调试工具
 - 🎯 [同工分析提示词](VOLUNTEER_ANALYSIS_PROMPTS.md) - AI分析示例
 - 🏗️ [MCP架构设计](docs/MCP_DESIGN.md) - 详细设计方案
 - ☁️ [MCP云端部署](docs/MCP_DEPLOYMENT.md) - Cloud Run部署
@@ -71,6 +72,10 @@
 - 🔵 [API服务文档](api/README.md) - REST API说明
 - 📚 [API端点文档](docs/API_ENDPOINTS.md) - 完整端点列表
 - 📦 [服务层架构](docs/SERVICE_LAYER.md) - 领域模型设计
+
+### 数据管理
+- 🔄 [自动别名同步](docs/AUTO_ALIAS_SYNC.md) - 自动识别和管理同工名字
+- 📋 [Schema管理](docs/SCHEMA_MANAGEMENT.md) - 动态列映射和部门管理
 
 ### 部署和运维
 - ☁️ [云端部署指南](docs/DEPLOYMENT.md) - Cloud Run + Scheduler
@@ -642,7 +647,7 @@ Grace-Irvine-Ministry-Clean/
 - ✅ **云原生**：容器化部署，自动扩展
 - ✅ **成本友好**：Cloud Run 免费额度内（~$1/月）
 
-👉 **详细架构**: [ARCHITECTURE.md](ARCHITECTURE.md) | [MCP设计](docs/MCP_DESIGN.md)
+👉 **详细架构**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | [MCP设计](docs/MCP_DESIGN.md)
 
 ---
 

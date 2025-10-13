@@ -76,8 +76,26 @@
   "alias_sources": {
     "people_alias_sheet": {
       "url": "https://docs.google.com/spreadsheets/d/1ypiXsdrfOrWxsAVJxQfZVwA0qtzRzb-siGiV2vixuoc/edit?gid=92852375#gid=92852375",
-      "range": "generated_aliases!A1:C"
-    }
+      "range": "generated_aliases!A1:D"
+    },
+    "auto_sync": true,
+    "include_count": true,
+    "role_fields": [
+      "preacher",
+      "reading",
+      "worship_lead",
+      "worship_team_1",
+      "worship_team_2",
+      "pianist",
+      "audio",
+      "video",
+      "propresenter_play",
+      "propresenter_update",
+      "video_editor",
+      "assistant_1",
+      "assistant_2",
+      "assistant_3"
+    ]
   },
   "volunteer_metadata_sheet": {
     "url": "https://docs.google.com/spreadsheets/d/1ypiXsdrfOrWxsAVJxQfZVwA0qtzRzb-siGiV2vixuoc/edit?gid=900093610#gid=900093610",

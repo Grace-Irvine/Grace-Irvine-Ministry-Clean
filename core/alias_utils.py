@@ -5,7 +5,11 @@
 
 from typing import Dict, Tuple, Optional, List
 import pandas as pd
+from collections import Counter
+import logging
 from core.gsheet_utils import GSheetClient
+
+logger = logging.getLogger(__name__)
 
 
 class AliasMapper:
@@ -169,4 +173,162 @@ class AliasMapper:
             'total_aliases': len(self.alias_map),
             'unique_persons': unique_persons
         }
+    
+    def extract_names_from_cleaned_data(
+        self, 
+        df: pd.DataFrame, 
+        role_fields: List[str]
+    ) -> Counter:
+        """
+        从清洗后的数据中提取所有人名及其出现次数
+        
+        Args:
+            df: 清洗后的 DataFrame
+            role_fields: 需要提取人名的角色字段列表
+            
+        Returns:
+            Counter 对象，key 为人名，value 为出现次数
+        """
+        names_counter = Counter()
+        
+        for role in role_fields:
+            # 查找带 _name 后缀的列（清洗后的数据格式）
+            name_col = f"{role}_name"
+            
+            if name_col in df.columns:
+                for value in df[name_col]:
+                    if value and not pd.isna(value) and str(value).strip():
+                        name = str(value).strip()
+                        names_counter[name] += 1
+        
+        logger.info(f"从数据中提取了 {len(names_counter)} 个唯一人名")
+        return names_counter
+    
+    def detect_new_and_existing(
+        self, 
+        names_counter: Counter
+    ) -> Tuple[List[Tuple[str, int]], List[Tuple[str, int]]]:
+        """
+        区分新名字和已存在的名字
+        
+        Args:
+            names_counter: 人名计数器
+            
+        Returns:
+            (新名字列表, 已存在名字列表)，每个元组包含 (name, count)
+        """
+        new_names = []
+        existing_names = []
+        
+        for name, count in names_counter.items():
+            normalized = self._normalize_for_matching(name)
+            if normalized in self.alias_map:
+                existing_names.append((name, count))
+            else:
+                new_names.append((name, count))
+        
+        logger.info(f"检测到 {len(new_names)} 个新名字，{len(existing_names)} 个已存在名字")
+        return new_names, existing_names
+    
+    def sync_to_sheet(
+        self, 
+        client: GSheetClient, 
+        url: str, 
+        range_name: str, 
+        names_counter: Counter
+    ) -> Dict[str, int]:
+        """
+        同步名字和统计到 Google Sheets
+        
+        读取现有的 alias_sources 数据，对新名字添加新行，对已有名字更新统计
+        
+        Args:
+            client: GSheetClient 实例
+            url: Google Sheets URL
+            range_name: 范围名称（如 "generated_aliases!A1:D"）
+            names_counter: 人名计数器
+            
+        Returns:
+            统计字典 {'new_added': int, 'updated': int}
+        """
+        logger.info("开始同步别名到 Google Sheets...")
+        
+        # 1. 读取现有数据
+        try:
+            existing_df = client.read_range(url, range_name)
+            logger.info(f"读取到 {len(existing_df)} 条现有记录")
+        except Exception as e:
+            logger.warning(f"读取现有数据失败: {e}，将创建新表")
+            existing_df = pd.DataFrame(columns=['alias', 'person_id', 'display_name', 'count'])
+        
+        # 确保列名标准化
+        if not existing_df.empty:
+            col_mapping = {}
+            for col in existing_df.columns:
+                col_lower = col.lower()
+                if col_lower in ['alias', 'person_id', 'display_name', 'count']:
+                    col_mapping[col] = col_lower
+            existing_df = existing_df.rename(columns=col_mapping)
+        
+        # 确保必需列存在
+        for col in ['alias', 'person_id', 'display_name', 'count']:
+            if col not in existing_df.columns:
+                existing_df[col] = ''
+        
+        # 2. 创建别名到行索引的映射
+        alias_to_idx = {}
+        for idx, row in existing_df.iterrows():
+            alias = str(row['alias']).strip()
+            if alias:
+                normalized = self._normalize_for_matching(alias)
+                alias_to_idx[normalized] = idx
+        
+        # 3. 区分新名字和已存在的名字
+        new_names, existing_names = self.detect_new_and_existing(names_counter)
+        
+        # 4. 更新已存在名字的统计
+        updated_count = 0
+        for name, count in existing_names:
+            normalized = self._normalize_for_matching(name)
+            if normalized in alias_to_idx:
+                idx = alias_to_idx[normalized]
+                existing_df.at[idx, 'count'] = count
+                updated_count += 1
+        
+        # 5. 添加新名字
+        new_rows = []
+        for name, count in new_names:
+            normalized = self._normalize_for_matching(name)
+            person_id = f"person_{normalized}"
+            new_row = {
+                'alias': name,
+                'person_id': person_id,
+                'display_name': name,
+                'count': count
+            }
+            new_rows.append(new_row)
+        
+        if new_rows:
+            new_df = pd.DataFrame(new_rows)
+            existing_df = pd.concat([existing_df, new_df], ignore_index=True)
+        
+        # 6. 写回 Google Sheets
+        try:
+            # 确保列顺序
+            final_df = existing_df[['alias', 'person_id', 'display_name', 'count']]
+            
+            # 写入（包含表头）
+            client.write_range(url, range_name.split('!')[0] + '!A1', final_df, include_header=True)
+            
+            logger.info(f"✅ 成功同步到 Google Sheets")
+            logger.info(f"   新增: {len(new_rows)} 个名字")
+            logger.info(f"   更新: {updated_count} 个名字的统计")
+            
+            return {
+                'new_added': len(new_rows),
+                'updated': updated_count
+            }
+        except Exception as e:
+            logger.error(f"❌ 写入 Google Sheets 失败: {e}")
+            raise
 
