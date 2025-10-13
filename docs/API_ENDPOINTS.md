@@ -995,6 +995,7 @@ curl -X POST "http://localhost:8080/api/v1/volunteer/suggestions" \
 ---
 
 **相关文档**:
+- [系统架构](ARCHITECTURE.md)
 - [MCP 设计方案](MCP_DESIGN.md)
 - [服务层架构](SERVICE_LAYER.md)
 - [部署指南](DEPLOYMENT.md)

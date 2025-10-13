@@ -159,27 +159,34 @@ async def verify_bearer_token(authorization: Optional[str] = Header(None)) -> bo
 
 def get_role_display_name(role: str) -> str:
     """
-    获取角色的中文显示名称
+    获取角色的中文显示名称（从配置文件中读取）
     """
-    # 角色名称映射表 - 显示具体的岗位名称
-    role_mapping = {
-        'worship_lead': '敬拜主领',
-        'worship_team_1': '敬拜同工1',
-        'worship_team_2': '敬拜同工2',
+    # 从配置文件中获取岗位名称映射
+    columns_mapping = CONFIG.get('columns', {})
+    
+    # 如果在配置中找到了映射，使用配置的名称
+    if role in columns_mapping:
+        return columns_mapping[role]
+    
+    # 兜底映射（用于处理一些特殊情况或历史数据）
+    # 包含通用字段名称和部门级别的映射
+    fallback_mapping = {
+        # 部门级别
+        'worship': '敬拜部',
+        'technical': '媒体部',
+        'education': '儿童部',
+        'sermon': '讲道部',
+        
+        # 通用岗位（不带数字后缀）
         'worship_team': '敬拜同工',
-        'pianist': '司琴',
-        'audio': '音控',
-        'video': '导播/摄影',
-        'propresenter_play': 'ProPresenter播放',
-        'propresenter_update': 'ProPresenter更新',
         'assistant': '助教',
-        'preacher': '讲员',
-        'reading': '读经',
-        'worship': '敬拜',
-        'technical': '技术'
+        
+        # 其他可能的历史字段
+        'team': '同工',
+        'lead': '主领'
     }
     
-    return role_mapping.get(role, role)
+    return fallback_mapping.get(role, role)
 
 def load_service_layer_data(domain: str, year: Optional[str] = None) -> Dict[str, Any]:
     """
@@ -259,79 +266,101 @@ def get_person_records(records: List[Dict], person_identifier: str) -> List[Dict
 
 
 def format_volunteer_record(record: Dict) -> str:
-    """格式化单条同工服侍记录为可读文本"""
+    """格式化单条同工服侍记录为可读文本（动态使用配置中的岗位名称）"""
     lines = [f"📅 服侍日期: {record.get('service_date', 'N/A')}"]
+    
+    # 获取配置中的部门信息
+    departments = CONFIG.get('departments', {})
     
     # 处理敬拜团队
     worship = record.get('worship', {})
     if worship:
-        lines.append("\n🎵 敬拜团队:")
+        dept_name = departments.get('worship', {}).get('name', '敬拜团队')
+        lines.append(f"\n🎵 {dept_name}:")
         
         # 敬拜主领
         lead = worship.get('lead', {})
         if lead and lead.get('name'):
-            lines.append(f"  • 敬拜主领: {lead['name']}")
+            role_display = get_role_display_name('worship_lead')
+            lines.append(f"  • {role_display}: {lead['name']}")
         
-        # 敬拜同工
+        # 敬拜同工（可能是列表）
         team = worship.get('team', [])
         if team:
             names = [member.get('name', 'N/A') for member in team if isinstance(member, dict)]
             if names:
-                lines.append(f"  • 敬拜同工: {', '.join(names)}")
+                role_display = get_role_display_name('worship_team_1')
+                # 移除数字后缀以获得通用名称
+                role_display = role_display.rstrip('12')
+                lines.append(f"  • {role_display}: {', '.join(names)}")
         
         # 司琴
         pianist = worship.get('pianist', {})
         if pianist and pianist.get('name'):
-            lines.append(f"  • 司琴: {pianist['name']}")
+            role_display = get_role_display_name('pianist')
+            lines.append(f"  • {role_display}: {pianist['name']}")
     
     # 处理技术团队
     technical = record.get('technical', {})
     if technical:
-        lines.append("\n🔧 技术团队:")
+        dept_name = departments.get('technical', {}).get('name', '技术团队')
+        lines.append(f"\n🔧 {dept_name}:")
         
-        # 音控
-        audio = technical.get('audio', {})
-        if audio and audio.get('name'):
-            lines.append(f"  • 音控: {audio['name']}")
-        
-        # 导播/摄影
-        video = technical.get('video', {})
-        if video and video.get('name'):
-            lines.append(f"  • 导播/摄影: {video['name']}")
-        
-        # ProPresenter播放
-        propresenter_play = technical.get('propresenter_play', {})
-        if propresenter_play and propresenter_play.get('name'):
-            lines.append(f"  • ProPresenter播放: {propresenter_play['name']}")
-        
-        # ProPresenter更新
-        propresenter_update = technical.get('propresenter_update', {})
-        if propresenter_update and propresenter_update.get('name'):
-            lines.append(f"  • ProPresenter更新: {propresenter_update['name']}")
+        # 动态处理所有技术岗位
+        technical_roles = departments.get('technical', {}).get('roles', [])
+        for role_key in technical_roles:
+            person = technical.get(role_key, {})
+            if person and person.get('name'):
+                role_display = get_role_display_name(role_key)
+                lines.append(f"  • {role_display}: {person['name']}")
     
-    # 处理其他字段（如果存在）
+    # 处理儿童部
+    education = record.get('education', {})
+    if education:
+        dept_name = departments.get('education', {}).get('name', '儿童部')
+        lines.append(f"\n👶 {dept_name}:")
+        
+        # 动态处理所有儿童部岗位
+        education_roles = departments.get('education', {}).get('roles', [])
+        for role_key in education_roles:
+            person = education.get(role_key, {})
+            if person and person.get('name'):
+                role_display = get_role_display_name(role_key)
+                lines.append(f"  • {role_display}: {person['name']}")
+    
+    # 处理其他未分类的字段
+    skip_keys = ['service_date', 'service_week', 'service_slot', 'worship', 'technical', 'education', 'source_row', 'updated_at']
     for key, value in record.items():
-        if key in ['service_date', 'service_week', 'service_slot', 'worship', 'technical', 'source_row', 'updated_at']:
+        if key in skip_keys:
             continue
         
         if isinstance(value, dict) and value.get('name'):
-            lines.append(f"  • {key}: {value['name']}")
+            role_display = get_role_display_name(key)
+            lines.append(f"  • {role_display}: {value['name']}")
         elif isinstance(value, list) and value:
             names = [item.get('name', 'N/A') for item in value if isinstance(item, dict)]
             if names:
-                lines.append(f"  • {key}: {', '.join(names)}")
+                role_display = get_role_display_name(key)
+                lines.append(f"  • {role_display}: {', '.join(names)}")
     
     return '\n'.join(lines)
 
 
 def format_sermon_record(record: Dict) -> str:
-    """格式化单条证道记录为可读文本"""
+    """格式化单条证道记录为可读文本（动态使用配置中的岗位名称）"""
     lines = [f"📅 服侍日期: {record.get('service_date', 'N/A')}"]
     
     # 讲员信息
     preacher = record.get('preacher', {})
-    if isinstance(preacher, dict):
-        lines.append(f"  🎤 讲员: {preacher.get('name', 'N/A')}")
+    if isinstance(preacher, dict) and preacher.get('name'):
+        role_display = get_role_display_name('preacher')
+        lines.append(f"  🎤 {role_display}: {preacher.get('name', 'N/A')}")
+    
+    # 读经
+    reading = record.get('reading', {})
+    if isinstance(reading, dict) and reading.get('name'):
+        role_display = get_role_display_name('reading')
+        lines.append(f"  📖 {role_display}: {reading.get('name', 'N/A')}")
     
     # 证道信息
     sermon = record.get('sermon', {})
