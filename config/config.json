@@ -1,7 +1,33 @@
 {
   "source_sheet": {
     "url": "https://docs.google.com/spreadsheets/d/1wescUQe9rIVLNcKdqmSLpzlAw9BGXMZmkFvjEF296nM/edit#gid=0",
-    "range": "总表!A1:Z"
+    "range": "总表!A1:Z",
+    "header_rows": 2,
+    "department_row": 1,
+    "column_row": 2
+  },
+  "departments": {
+    "sermon": {
+      "name": "讲道",
+      "roles": ["preacher", "reading"]
+    },
+    "worship": {
+      "name": "敬拜部",
+      "roles": ["worship_lead", "worship_team_1", "worship_team_2", "pianist"]
+    },
+    "technical": {
+      "name": "媒体部",
+      "roles": ["audio", "video", "propresenter_play", "propresenter_update", "video_editor"]
+    },
+    "education": {
+      "name": "儿童部",
+      "roles": ["assistant_1", "assistant_2", "assistant_3"]
+    }
+  },
+  "schema_validation": {
+    "enabled": true,
+    "auto_detect_new_columns": true,
+    "strict_mode": false
   },
   "target_sheet": {
     "url": "https://docs.google.com/spreadsheets/d/1ypiXsdrfOrWxsAVJxQfZVwA0qtzRzb-siGiV2vixuoc/edit#gid=0",
@@ -24,7 +50,10 @@
     "video": "导播/摄影",
     "propresenter_play": "ProPresenter播放",
     "propresenter_update": "ProPresenter更新",
-    "assistant": "助教"
+    "video_editor": "视频剪辑",
+    "assistant_1": "助教1",
+    "assistant_2": "助教2",
+    "assistant_3": "助教3"
   },
   "cleaning_rules": {
     "date_format": "YYYY-MM-DD",
@@ -33,9 +62,6 @@
     "capitalize_names": true,
     "normalize_scripture": true,
     "split_songs_delimiters": ["、", ",", "/", "|"],
-    "merge_columns": {
-      "worship_team": ["worship_team_1", "worship_team_2"]
-    },
     "role_whitelist": [
       "敬拜带领",
       "敬拜同工",
