@@ -1849,13 +1849,10 @@ async def handle_call_tool(
             else:
                 text_lines.append("📖 证道信息: 待定")
             
-            # 同工安排
+            # 同工安排 - 统一处理所有团队
             if day_volunteers:
                 volunteer = day_volunteers[0]
                 text_lines.append("\n👥 同工安排:")
-                
-                # 获取配置中的部门信息
-                departments = CONFIG.get('departments', {})
                 
                 # 敬拜团队
                 worship = volunteer.get('worship', {})
@@ -1867,7 +1864,8 @@ async def handle_call_tool(
                     if worship.get('team'):
                         names = [m.get('name') for m in worship['team'] if m.get('name')]
                         if names:
-                            role_display = get_role_display_name('worship_team_1')
+                            # 使用更通用的显示名称
+                            role_display = get_role_display_name('worship_team')
                             text_lines.append(f"    • {role_display}: {', '.join(names)}")
                     if worship.get('pianist', {}).get('name'):
                         role_display = get_role_display_name('pianist')
@@ -1876,20 +1874,23 @@ async def handle_call_tool(
                 # 媒体团队
                 technical = volunteer.get('technical', {})
                 if technical:
-                    # 从配置中动态获取所有技术岗位
-                    technical_roles = departments.get('technical', {}).get('roles', [])
-                    technical_members = []
-                    for tech_role in technical_roles:
-                        person = technical.get(tech_role, {})
-                        # 检查name字段存在且不是空字符串
-                        if person and person.get('name') and person['name'].strip():
+                    text_lines.append("  📺 媒体团队:")
+                    # 直接遍历technical对象中的所有字段
+                    for tech_role, person in technical.items():
+                        # 跳过department字段
+                        if tech_role == 'department':
+                            continue
+                        if person and isinstance(person, dict) and person.get('name') and person['name'].strip():
                             role_display_name = get_role_display_name(tech_role)
-                            technical_members.append(f"    • {role_display_name}: {person['name']}")
-                    
-                    # 只有当有成员时才显示部门标题
-                    if technical_members:
-                        text_lines.append("  📺 媒体团队:")
-                        text_lines.extend(technical_members)
+                            text_lines.append(f"    • {role_display_name}: {person['name']}")
+                
+                # 儿童事工
+                education = volunteer.get('education', {})
+                if education and education.get('assistants'):
+                    text_lines.append("  👶 儿童事工:")
+                    for assistant in education['assistants']:
+                        if assistant.get('name'):
+                            text_lines.append(f"    • 同工: {assistant['name']}")
             else:
                 text_lines.append("\n👥 同工安排: 待定")
             
