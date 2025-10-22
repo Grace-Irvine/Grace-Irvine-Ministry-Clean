@@ -34,7 +34,7 @@ fi
 REGION="${GCP_REGION:-us-central1}"
 SERVICE_NAME="${MCP_SERVICE_NAME:-ministry-data-mcp}"
 IMAGE_NAME="gcr.io/${GCP_PROJECT_ID}/${SERVICE_NAME}"
-DOCKERFILE_PATH="mcp_local/Dockerfile"
+DOCKERFILE_PATH="mcp/Dockerfile"
 MEMORY="${MEMORY:-512Mi}"
 CPU="${CPU:-1}"
 MAX_INSTANCES="${MAX_INSTANCES:-10}"
@@ -82,7 +82,7 @@ echo -e "${GREEN}✓ APIs enabled${NC}"
 echo -e "\n${GREEN}[3/6] Building Docker image...${NC}"
 echo "  Using Dockerfile: $DOCKERFILE_PATH"
 gcloud builds submit \
-    --config mcp_local/cloudbuild.yaml \
+    --config mcp/cloudbuild.yaml \
     --timeout=10m \
     .
 echo -e "${GREEN}✓ Image built: $IMAGE_NAME${NC}"

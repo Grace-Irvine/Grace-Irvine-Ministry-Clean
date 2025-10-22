@@ -119,7 +119,7 @@
       "provider": "gcs",
       "bucket": "grace-irvine-ministry-data",
       "base_path": "domains/",
-      "service_account_file": "/app/config/service-account.json",
+      "service_account_file": "config/service-account.json",
       "enable_versioning": true
     },
     "output_options": {

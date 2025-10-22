@@ -5,10 +5,10 @@
 The MCP server has been updated with **proper SSE (Server-Sent Events) transport** to enable OpenAI ChatGPT integration.
 
 ### Files Created
-- `mcp_local/sse_transport.py` - New SSE transport implementation
+- `mcp/sse_transport.py` - New SSE transport implementation
 
 ### Files Modified
-- `mcp_local/mcp_server.py` - Added `/sse` endpoint, removed incompatible REST endpoints
+- `mcp/mcp_server.py` - Added `/sse` endpoint, removed incompatible REST endpoints
 - `deploy/deploy-mcp.sh` - Updated deployment script for new endpoints
 - `docs/OPENAI_ALIGNMENT.md` - Added SSE implementation documentation
 - `docs/OPENAI_SETUP.md` - New OpenAI integration guide (created)
@@ -51,7 +51,7 @@ bash deploy/deploy-mcp.sh
 ### Option 2: Manual Deployment
 
 ```bash
-cd /path/to/Grace-Irvine-Ministry-Clean/mcp_local
+cd /path/to/Grace-Irvine-Ministry-Clean/mcp
 
 # Deploy to Cloud Run
 gcloud run deploy ministry-data-mcp \
@@ -185,7 +185,7 @@ Once deployed, add the MCP server to OpenAI:
 ## Project Structure
 
 ```
-mcp_local/
+mcp/
 ├── mcp_server.py          # Main server (updated)
 ├── sse_transport.py       # SSE transport (new)
 ├── Dockerfile             # Container config

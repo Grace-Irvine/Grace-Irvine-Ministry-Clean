@@ -6,12 +6,12 @@
 
 **🔄 MCP服务器统一实现** (2025-10-10)
 
-- ✅ **单一文件实现**：stdio 和 HTTP/SSE 模式统一在 `mcp_local/mcp_server.py` 中
+- ✅ **单一文件实现**：stdio 和 HTTP/SSE 模式统一在 `mcp/mcp_server.py` 中
 - ✅ **自动模式切换**：根据环境变量（PORT）自动选择运行模式
 - ✅ **完全兼容**：支持 Claude Desktop（stdio）和 ChatGPT/OpenAI（HTTP/SSE）
 - ✅ **简化部署**：单一Docker镜像，统一配置
 
-👉 **查看 [MCP本地文档](mcp_local/README.md)** | **[更新日志](CHANGELOG.md)**
+👉 **查看 [MCP本地文档](mcp/README.md)** | **[更新日志](CHANGELOG.md)**
 
 ## 🎉 核心特性
 
@@ -62,7 +62,7 @@
 - 📝 [更新日志](CHANGELOG.md) - 版本历史
 
 ### AI 助手集成（MCP）
-- 🤖 [MCP服务器文档](mcp_local/README.md) - 完整使用指南
+- 🤖 [MCP服务器文档](mcp/README.md) - 完整使用指南
 - 🔍 [MCP Inspector使用指南](docs/MCP_INSPECTOR.md) - Inspector调试工具
 - 🎯 [同工分析提示词](VOLUNTEER_ANALYSIS_PROMPTS.md) - AI分析示例
 - 🏗️ [MCP架构设计](docs/MCP_DESIGN.md) - 详细设计方案
@@ -143,7 +143,7 @@
 
 ```bash
 # Claude Desktop 本地模式
-python mcp_local/mcp_server.py
+python mcp/mcp_server.py
 
 # 或部署到Cloud Run（HTTP模式）
 ./deploy/deploy-mcp.sh
@@ -151,7 +151,7 @@ python mcp_local/mcp_server.py
 
 **特点**：自然语言查询、多客户端支持、预定义分析模板
 
-👉 **详细说明**: [MCP服务器文档](mcp_local/README.md)
+👉 **详细说明**: [MCP服务器文档](mcp/README.md)
 
 ---
 

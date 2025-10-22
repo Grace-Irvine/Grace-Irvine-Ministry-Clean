@@ -175,7 +175,7 @@ python test_alias_sync.py
 
 #### 1. 统一服务器实现 ✅
 
-##### `mcp_local/mcp_server.py` - 单一文件实现
+##### `mcp/mcp_server.py` - 单一文件实现
 - **功能**：stdio 和 HTTP/SSE 两种模式统一在一个文件中
 - **特性**：
   - 自动模式检测（基于 PORT 环境变量）
@@ -185,7 +185,7 @@ python test_alias_sync.py
 
 #### 2. 移除冗余文件 ✅
 
-- **删除** `mcp_local/mcp_http_server.py`（功能已合并）
+- **删除** `mcp/mcp_http_server.py`（功能已合并）
 - 所有 HTTP/SSE 功能现在在 `mcp_server.py` 中
 
 #### 3. 更新部署配置 ✅
@@ -196,7 +196,7 @@ python test_alias_sync.py
 
 #### 4. 文档整理 ✅
 
-- **更新** `mcp_local/README.md` - 完整的统一实现说明
+- **更新** `mcp/README.md` - 完整的统一实现说明
 - **更新** `README.md` - 精简并聚焦核心功能
 - **删除** 23+ 个重复和过时文档：
   - ChatGPT 连接相关（6个）
@@ -222,12 +222,12 @@ python test_alias_sync.py
 
 **本地 stdio 模式（Claude Desktop）**：
 ```bash
-python mcp_local/mcp_server.py
+python mcp/mcp_server.py
 ```
 
 **本地 HTTP 模式（ChatGPT）**：
 ```bash
-PORT=8080 python mcp_local/mcp_server.py
+PORT=8080 python mcp/mcp_server.py
 ```
 
 **Cloud Run 部署**：

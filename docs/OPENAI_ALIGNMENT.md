@@ -81,10 +81,10 @@ return [types.TextContent(
 实现了标准的 Server-Sent Events (SSE) 传输协议，符合 MCP 官方规范：
 
 **创建文件：**
-- `mcp_local/sse_transport.py` - SSE 传输层实现
+- `mcp/sse_transport.py` - SSE 传输层实现
 
 **修改文件：**
-- `mcp_local/mcp_server.py` - 添加 `/sse` 端点，移除旧的 REST 端点
+- `mcp/mcp_server.py` - 添加 `/sse` 端点，移除旧的 REST 端点
 
 **主要改进：**
 - ✅ `/sse` 端点：使用 POST + SSE 流式响应
@@ -232,10 +232,10 @@ curl -X POST http://localhost:8080/mcp \
 
 ```bash
 # 运行 stdio 模式（Claude Desktop）
-python3 mcp_local/mcp_server.py
+python3 mcp/mcp_server.py
 
 # 运行 HTTP/SSE 模式（OpenAI 测试）
-PORT=8080 MCP_BEARER_TOKEN=test-token python3 mcp_local/mcp_server.py --http
+PORT=8080 MCP_BEARER_TOKEN=test-token python3 mcp/mcp_server.py --http
 ```
 
 ### Cloud Run 部署
@@ -243,7 +243,7 @@ PORT=8080 MCP_BEARER_TOKEN=test-token python3 mcp_local/mcp_server.py --http
 部署到 Cloud Run（推荐用于 OpenAI 集成）：
 
 ```bash
-cd mcp_local
+cd mcp
 
 gcloud run deploy ministry-data-mcp \
   --source . \
