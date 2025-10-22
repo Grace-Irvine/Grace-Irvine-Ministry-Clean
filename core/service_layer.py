@@ -263,12 +263,17 @@ class VolunteerDomainTransformer(DomainTransformer):
                     'name': str(row.get('video_editor_name', ''))
                 }
             },
+            # 儿童部
             'education': {
-                'department': str(row.get('assistant_1_department', '')),
-                'assistants': [
-                    {'id': str(row.get(f'assistant_{i}_id', '')), 'name': str(row.get(f'assistant_{i}_name', ''))}
-                    for i in range(1, 4)  # assistant_1, assistant_2, assistant_3
-                    if row.get(f'assistant_{i}_id') or row.get(f'assistant_{i}_name')
+                'department': str(row.get('friday_child_ministry_department', '')),
+                'friday_child_ministry': {
+                    'id': str(row.get('friday_child_ministry_id', '')),
+                    'name': str(row.get('friday_child_ministry_name', ''))
+                },
+                'sunday_child_assistants': [
+                    {'id': str(row.get(f'sunday_child_assistant_{i}_id', '')), 'name': str(row.get(f'sunday_child_assistant_{i}_name', ''))}
+                    for i in range(1, 4)  # sunday_child_assis  tant_1, sunday_child_assistant_2, sunday_child_assistant_3
+                    if row.get(f'sunday_child_assistant_{i}_id') or row.get(f'sunday_child_assistant_{i}_name')
                 ]
             },
             'source_row': int(row.get('source_row', 0)) if pd.notna(row.get('source_row')) else None,

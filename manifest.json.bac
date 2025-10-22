@@ -1,0 +1,164 @@
+{
+  "manifest_version": "0.2",
+  "name": "ministry-data",
+  "display_name": "Grace Irvine Ministry Data",
+  "version": "3.8.2",
+  "description": "Manage church ministry data including sermons, volunteers, and schedules. Supports GCS storage, real-time data sync, and AI-powered analysis.",
+  "long_description": "Grace Irvine Ministry Data MCP Server provides comprehensive tools for managing church ministry data. Features include:\n\n- **Data Cleaning**: Automated data cleaning pipeline for sermon and volunteer records\n- **Service Layer Management**: Generate and manage domain-specific service layers with GCS sync\n- **Volunteer Management**: Track volunteer availability, skills, and scheduling patterns\n- **Sermon Management**: Organize sermon records with speakers, series tracking, and scripture references\n- **Data Analysis**: Query and analyze ministry data with AI assistance and trend detection\n- **Smart Scheduling**: AI-powered scheduling recommendations based on volunteer availability and patterns\n- **Cloud Storage**: Automatic sync with Google Cloud Storage for real-time data updates\n- **Local MCP Server**: Direct access to latest data without caching issues\n\nDesigned specifically for Grace Irvine Church's ministry operations. Now supports local MCP server mode for instant data access.",
+  "author": {
+    "name": "Grace Irvine Ministry",
+    "url": "https://github.com/Grace-Irvine/Grace-Irvine-Ministry-Clean"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/Grace-Irvine/Grace-Irvine-Ministry-Clean",
+  "documentation": "https://github.com/Grace-Irvine/Grace-Irvine-Ministry-Clean/tree/main/docs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Grace-Irvine/Grace-Irvine-Ministry-Clean"
+  },
+  "icon": "icon.png",
+  "files": [
+    "config/config.json",
+    "config/service-account.json",
+    "mcp_local/mcp_server.py",
+    "mcp_local/sse_transport.py",
+    "core/clean_pipeline.py",
+    "core/service_layer.py",
+    "core/cloud_storage_utils.py",
+    "core/gsheet_utils.py",
+    "core/alias_utils.py",
+    "core/change_detector.py",
+    "core/schema_manager.py",
+    "core/validators.py",
+    "core/debug_clean_local.py",
+    "core/detect_schema_changes.py",
+    "core/extract_aliases_smart.py",
+    "core/generate_aliases_from_excel.py",
+    "core/generate_volunteer_metadata.py",
+    "requirements.txt"
+  ],
+  "server": {
+    "type": "python",
+    "entry_point": "mcp_local/mcp_server.py",
+    "mcp_config": {
+      "command": "python3",
+      "args": ["${__dirname}/mcp_local/mcp_server.py"],
+      "env": {
+        "GOOGLE_APPLICATION_CREDENTIALS": "${__dirname}/config/service-account.json",
+        "CONFIG_PATH": "${__dirname}/config/config.json"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "query_volunteers_by_date",
+      "description": "Query volunteer service assignments for a specific date (e.g., next Sunday's volunteers)"
+    },
+    {
+      "name": "query_sermon_by_date",
+      "description": "Query sermon information for a specific date (speaker, topic, scripture, etc.)"
+    },
+    {
+      "name": "query_date_range",
+      "description": "Query all service assignments within a date range"
+    },
+    {
+      "name": "check_upcoming_completeness",
+      "description": "Check upcoming schedule completeness, identify vacant positions and suggest fill-ins"
+    },
+    {
+      "name": "generate_weekly_preview",
+      "description": "Generate Sunday preview report (sermon info + volunteer assignments)"
+    },
+    {
+      "name": "analyze_role_coverage",
+      "description": "Analyze role coverage rate, calculate health index, identify single-point-of-failure roles"
+    },
+    {
+      "name": "analyze_preacher_rotation",
+      "description": "Analyze preacher rotation patterns, calculate interval cycles, suggest future arrangements"
+    },
+    {
+      "name": "analyze_sermon_series_progress",
+      "description": "Track sermon series progress, calculate completion rate, identify interruptions"
+    },
+    {
+      "name": "analyze_volunteer_trends",
+      "description": "Analyze volunteer trends, identify new/active/dormant volunteers, calculate retention rate"
+    },
+    {
+      "name": "clean_ministry_data",
+      "description": "Clean and validate ministry data from Google Sheets source"
+    },
+    {
+      "name": "generate_service_layer",
+      "description": "Generate service layer data and upload to cloud storage"
+    },
+    {
+      "name": "diagnose_gcs_connection",
+      "description": "Diagnose GCS connection status and data sources"
+    }
+  ],
+  "prompts": [
+    {
+      "name": "analyze_preaching_schedule",
+      "description": "Analyze preaching schedule and sermon series progress",
+      "text": "Please analyze the preaching schedule and sermon series progress. Focus on sermon series progression, preacher rotation patterns, and scripture coverage."
+    },
+    {
+      "name": "analyze_volunteer_balance",
+      "description": "Analyze volunteer service workload balance",
+      "text": "Please analyze the volunteer service workload balance. Identify volunteers who are over-serving or under-serving, and provide recommendations for better workload distribution."
+    },
+    {
+      "name": "find_scheduling_gaps",
+      "description": "Find scheduling gaps and vacant positions",
+      "text": "Please identify scheduling gaps and vacant positions in the ministry schedule. List all unfilled roles and suggest volunteers who could fill these positions."
+    },
+    {
+      "name": "analyze_next_sunday_volunteers",
+      "description": "Analyze which volunteers are serving next Sunday",
+      "text": "Please show me which volunteers are serving next Sunday. Include all roles and provide a complete overview of the service team."
+    },
+    {
+      "name": "analyze_recent_volunteer_roles",
+      "description": "Analyze which volunteers are serving in different ministry roles in recent weeks",
+      "text": "Please analyze volunteer service patterns in recent weeks. Show which volunteers are serving in different ministry roles and identify any trends."
+    },
+    {
+      "name": "analyze_volunteer_frequency",
+      "description": "Analyze volunteer service frequency, identify over/under-serving volunteers",
+      "text": "Please analyze volunteer service frequency. Identify volunteers who are serving too frequently or not enough, and provide recommendations for better balance."
+    },
+    {
+      "name": "check_upcoming_schedule",
+      "description": "Check upcoming schedule completeness and identify vacant positions",
+      "text": "Please check the completeness of upcoming schedules. Identify any vacant positions and suggest volunteers who could fill these roles based on their availability and skills."
+    },
+    {
+      "name": "generate_sunday_preview",
+      "description": "Generate Sunday preview report (sermon info + volunteer assignments)",
+      "text": "Please generate a comprehensive Sunday preview report including sermon information (preacher, topic, scripture) and complete volunteer assignments for all ministry roles."
+    },
+    {
+      "name": "analyze_role_health",
+      "description": "Analyze role health and identify single-point-of-failure positions",
+      "text": "Please analyze the health of each ministry role. Identify single-point-of-failure positions where only one person can serve, and suggest strategies to build redundancy."
+    },
+    {
+      "name": "analyze_preacher_schedule",
+      "description": "Analyze preacher rotation patterns and suggest future arrangements",
+      "text": "Please analyze preacher rotation patterns. Calculate average intervals between sermons for each preacher and suggest optimal future scheduling arrangements."
+    },
+    {
+      "name": "track_sermon_series",
+      "description": "Track sermon series progress and identify interruptions",
+      "text": "Please track the progress of sermon series. Identify any series that have been interrupted or are incomplete, and calculate completion rates."
+    },
+    {
+      "name": "analyze_volunteer_growth",
+      "description": "Analyze volunteer trends and identify new/active/dormant volunteers",
+      "text": "Please analyze volunteer growth trends. Identify new volunteers, active volunteers, and dormant volunteers. Calculate retention rates and provide insights on volunteer engagement."
+    }
+  ]
+}

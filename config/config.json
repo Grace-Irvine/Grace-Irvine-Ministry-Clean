@@ -21,7 +21,7 @@
     },
     "education": {
       "name": "儿童部",
-      "roles": ["assistant_1", "assistant_2", "assistant_3"]
+      "roles": ["friday_child_ministry", "sunday_child_assistant_1", "sunday_child_assistant_2", "sunday_child_assistant_3"]
     }
   },
   "schema_validation": {
@@ -51,9 +51,10 @@
     "propresenter_play": "ProPresenter播放",
     "propresenter_update": "ProPresenter更新",
     "video_editor": "视频剪辑",
-    "assistant_1": "助教1",
-    "assistant_2": "助教2",
-    "assistant_3": "助教3"
+    "friday_child_ministry": "周五老师",
+    "sunday_child_assistant_1": "周日助教1",
+    "sunday_child_assistant_2": "周日助教2",
+    "sunday_child_assistant_3": "周日助教3"
   },
   "cleaning_rules": {
     "date_format": "YYYY-MM-DD",
@@ -92,9 +93,10 @@
       "propresenter_play",
       "propresenter_update",
       "video_editor",
-      "assistant_1",
-      "assistant_2",
-      "assistant_3"
+      "friday_child_ministry",
+      "sunday_child_assistant_1",
+      "sunday_child_assistant_2",
+      "sunday_child_assistant_3"
     ]
   },
   "volunteer_metadata_sheet": {
@@ -117,7 +119,7 @@
       "provider": "gcs",
       "bucket": "grace-irvine-ministry-data",
       "base_path": "domains/",
-      "service_account_file": "/Users/jonathan_jing/SynologyDrive/Study/AI/Grace-Irvine-Ministry-Clean/config/service-account.json",
+      "service_account_file": "/app/config/service-account.json",
       "enable_versioning": true
     },
     "output_options": {
