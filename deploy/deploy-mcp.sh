@@ -166,11 +166,8 @@ echo -e "${GREEN}Deployment Summary${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo -e "Service URL: ${YELLOW}${SERVICE_URL}${NC}"
 echo -e "MCP Endpoints:"
-echo -e "  - Capabilities: ${YELLOW}${SERVICE_URL}/mcp/capabilities${NC}"
-echo -e "  - Tools: ${YELLOW}${SERVICE_URL}/mcp/tools${NC}"
-echo -e "  - Resources: ${YELLOW}${SERVICE_URL}/mcp/resources${NC}"
-echo -e "  - Prompts: ${YELLOW}${SERVICE_URL}/mcp/prompts${NC}"
-echo -e "  - SSE: ${YELLOW}${SERVICE_URL}/mcp/sse${NC}"
+echo -e "  - SSE (for OpenAI): ${YELLOW}${SERVICE_URL}/sse${NC}"
+echo -e "  - Health Check: ${YELLOW}${SERVICE_URL}/health${NC}"
 echo ""
 
 # 测试健康检查
@@ -188,40 +185,39 @@ echo -e "${GREEN}Client Configuration${NC}"
 echo -e "${GREEN}========================================${NC}"
 
 if [ -n "$MCP_BEARER_TOKEN" ]; then
-    echo -e "\n${YELLOW}1. For Claude Desktop (macOS/Linux):${NC}"
-    echo "   Add to ~/Library/Application Support/Claude/claude_desktop_config.json:"
+    echo -e "\n${YELLOW}1. For OpenAI ChatGPT:${NC}"
+    echo "   Add MCP Server in ChatGPT settings:"
     cat <<EOF
 
-{
-  "mcpServers": {
-    "ministry-data": {
-      "url": "${SERVICE_URL}/mcp/sse",
-      "transport": "sse",
-      "headers": {
-        "Authorization": "Bearer ${MCP_BEARER_TOKEN}"
-      }
-    }
-  }
-}
+Server Name: Ministry Data
+Server URL: ${SERVICE_URL}/sse
+Authentication: Bearer Token
+Token: ${MCP_BEARER_TOKEN}
 EOF
 
-    echo -e "\n${YELLOW}2. For curl testing:${NC}"
+    echo -e "\n${YELLOW}2. For curl testing (initialize):${NC}"
     cat <<EOF
 
-# List tools
-curl -X POST "${SERVICE_URL}/mcp" \\
+curl -N \\
   -H "Authorization: Bearer ${MCP_BEARER_TOKEN}" \\
   -H "Content-Type: application/json" \\
-  -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}'
-
-# List resources
-curl -X POST "${SERVICE_URL}/mcp" \\
-  -H "Authorization: Bearer ${MCP_BEARER_TOKEN}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"jsonrpc": "2.0", "id": 2, "method": "resources/list"}'
+  -H "Accept: text/event-stream" \\
+  -X POST "${SERVICE_URL}/sse" \\
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}'
 EOF
 
-    echo -e "\n${YELLOW}3. Save your Bearer Token securely:${NC}"
+    echo -e "\n${YELLOW}3. For curl testing (list tools):${NC}"
+    cat <<EOF
+
+curl -N \\
+  -H "Authorization: Bearer ${MCP_BEARER_TOKEN}" \\
+  -H "Content-Type: application/json" \\
+  -H "Accept: text/event-stream" \\
+  -X POST "${SERVICE_URL}/sse" \\
+  -d '{"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}'
+EOF
+
+    echo -e "\n${YELLOW}4. Save your Bearer Token securely:${NC}"
     echo "   Token: ${MCP_BEARER_TOKEN}"
     echo "   (Store this in a password manager)"
 else

@@ -278,19 +278,27 @@ def run_cleaning_pipeline(
             has_changed, change_details = detector.has_changed(raw_df)
             
             if not has_changed:
-                logger.info("数据未发生变化，跳过清洗")
+                logger.info("数据未发生变化，但仍生成服务层数据")
                 state_summary = detector.get_state_summary()
+
+                # 即使数据未变化，也要清洗并生成服务层（用于GCS更新）
+                clean_df = pipeline.clean_data(raw_df)
+                report = pipeline.validate_data(clean_df)
+
+                # 不写入清洗层Google Sheet（数据未变化），但生成服务层
+                pipeline.generate_service_layer(clean_df)
+
                 detector.update_state(raw_df, success=True)
-                
+
                 return {
                     'success': True,
-                    'message': '数据未发生变化，无需更新',
+                    'message': '数据未发生变化，但已更新服务层',
                     'changed': False,
                     'change_reason': change_details['reason'],
                     'total_rows': total_rows,
-                    'success_rows': state_summary.get('last_row_count', 0),
-                    'warning_rows': 0,
-                    'error_rows': 0,
+                    'success_rows': report.success_rows,
+                    'warning_rows': report.warning_rows,
+                    'error_rows': report.error_rows,
                     'timestamp': datetime.utcnow().isoformat() + 'Z',
                     'preview_available': True,
                     'last_update_time': state_summary.get('last_update_time')
@@ -309,13 +317,16 @@ def run_cleaning_pipeline(
         
         # 清洗数据
         clean_df = pipeline.clean_data(raw_df)
-        
+
         # 校验数据
         report = pipeline.validate_data(clean_df)
-        
+
         # 写入输出
         pipeline.write_output(clean_df, dry_run=dry_run)
-        
+
+        # 生成服务层数据并上传到 GCS
+        pipeline.generate_service_layer(clean_df)
+
         # 更新状态
         detector.update_state(raw_df, success=True)
         

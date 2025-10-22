@@ -54,9 +54,10 @@ class CleaningPipeline:
         'propresenter_play_id', 'propresenter_play_name', 'propresenter_play_department',
         'propresenter_update_id', 'propresenter_update_name', 'propresenter_update_department',
         'video_editor_id', 'video_editor_name', 'video_editor_department',
-        'assistant_1_id', 'assistant_1_name', 'assistant_1_department',
-        'assistant_2_id', 'assistant_2_name', 'assistant_2_department',
-        'assistant_3_id', 'assistant_3_name', 'assistant_3_department',
+        'friday_child_ministry_id', 'friday_child_ministry_name', 'friday_child_ministry_department',
+        'sunday_child_assistant_1_id', 'sunday_child_assistant_1_name', 'sunday_child_assistant_1_department',
+        'sunday_child_assistant_2_id', 'sunday_child_assistant_2_name', 'sunday_child_assistant_2_department',
+        'sunday_child_assistant_3_id', 'sunday_child_assistant_3_name', 'sunday_child_assistant_3_department',
         'notes', 'source_row', 'updated_at'
     ]
     
@@ -321,26 +322,33 @@ class CleaningPipeline:
         cleaned['video_editor_name'] = video_editor_display
         cleaned['video_editor_department'] = self.schema_manager.get_department('video_editor') or ''
         
-        # 助教1
-        assistant_1_name = self.cleaning_rules.clean_name(row.get('assistant_1'))
-        assistant_1_id, assistant_1_display = self.alias_mapper.resolve(assistant_1_name)
-        cleaned['assistant_1_id'] = assistant_1_id
-        cleaned['assistant_1_name'] = assistant_1_display
-        cleaned['assistant_1_department'] = self.schema_manager.get_department('assistant_1') or ''
+        # 周五老师
+        friday_child_ministry_name = self.cleaning_rules.clean_name(row.get('friday_child_ministry'))
+        friday_child_ministry_id, friday_child_ministry_display = self.alias_mapper.resolve(friday_child_ministry_name)
+        cleaned['friday_child_ministry_id'] = friday_child_ministry_id
+        cleaned['friday_child_ministry_name'] = friday_child_ministry_display
+        cleaned['friday_child_ministry_department'] = self.schema_manager.get_department('friday_child_ministry') or ''
         
-        # 助教2
-        assistant_2_name = self.cleaning_rules.clean_name(row.get('assistant_2'))
-        assistant_2_id, assistant_2_display = self.alias_mapper.resolve(assistant_2_name)
-        cleaned['assistant_2_id'] = assistant_2_id
-        cleaned['assistant_2_name'] = assistant_2_display
-        cleaned['assistant_2_department'] = self.schema_manager.get_department('assistant_2') or ''
+        # 周日助教1
+        sunday_child_assistant_1_name = self.cleaning_rules.clean_name(row.get('sunday_child_assistant_1'))
+        sunday_child_assistant_1_id, sunday_child_assistant_1_display = self.alias_mapper.resolve(sunday_child_assistant_1_name)
+        cleaned['sunday_child_assistant_1_id'] = sunday_child_assistant_1_id
+        cleaned['sunday_child_assistant_1_name'] = sunday_child_assistant_1_display
+        cleaned['sunday_child_assistant_1_department'] = self.schema_manager.get_department('sunday_child_assistant_1') or ''
         
-        # 助教3
-        assistant_3_name = self.cleaning_rules.clean_name(row.get('assistant_3'))
-        assistant_3_id, assistant_3_display = self.alias_mapper.resolve(assistant_3_name)
-        cleaned['assistant_3_id'] = assistant_3_id
-        cleaned['assistant_3_name'] = assistant_3_display
-        cleaned['assistant_3_department'] = self.schema_manager.get_department('assistant_3') or ''
+        # 周日助教2
+        sunday_child_assistant_2_name = self.cleaning_rules.clean_name(row.get('sunday_child_assistant_2'))
+        sunday_child_assistant_2_id, sunday_child_assistant_2_display = self.alias_mapper.resolve(sunday_child_assistant_2_name)
+        cleaned['sunday_child_assistant_2_id'] = sunday_child_assistant_2_id
+        cleaned['sunday_child_assistant_2_name'] = sunday_child_assistant_2_display
+        cleaned['sunday_child_assistant_2_department'] = self.schema_manager.get_department('sunday_child_assistant_2') or ''
+        
+        # 周日助教3
+        sunday_child_assistant_3_name = self.cleaning_rules.clean_name(row.get('sunday_child_assistant_3'))
+        sunday_child_assistant_3_id, sunday_child_assistant_3_display = self.alias_mapper.resolve(sunday_child_assistant_3_name)
+        cleaned['sunday_child_assistant_3_id'] = sunday_child_assistant_3_id
+        cleaned['sunday_child_assistant_3_name'] = sunday_child_assistant_3_display
+        cleaned['sunday_child_assistant_3_department'] = self.schema_manager.get_department('sunday_child_assistant_3') or ''
         
         # 备注
         cleaned['notes'] = self.cleaning_rules.clean_text(row.get('notes', ''))
@@ -385,7 +393,7 @@ class CleaningPipeline:
             role_fields = alias_config.get('role_fields', [
                 'preacher', 'reading', 'worship_lead', 'worship_team_1', 'worship_team_2',
                 'pianist', 'audio', 'video', 'propresenter_play', 'propresenter_update',
-                'video_editor', 'assistant_1', 'assistant_2', 'assistant_3'
+                'video_editor', 'friday_child_ministry', 'sunday_child_assistant_1', 'sunday_child_assistant_2', 'sunday_child_assistant_3'
             ])
             
             # 1. 从清洗后的数据中提取所有人名及其出现次数
@@ -531,14 +539,22 @@ class CleaningPipeline:
                         
                         # 根据是否为 latest 决定上传路径
                         if year == 'latest':
-                            uploaded = storage_manager.upload_domain_data(domain, domain_data)
+                            # 直接上传 latest 数据，不触发同步
+                            uploaded = storage_manager.upload_domain_data(domain, domain_data, sync_latest=False)
                         else:
-                            # 上传年份文件
-                            yearly_path = f"{domain}/{year}/{domain}_{year}.json"
-                            gs_path = storage_manager.gcs_client.upload_json(domain_data, yearly_path)
-                            uploaded = {f'yearly_{year}': gs_path}
+                            # 上传年份文件，不立即同步（避免重复同步）
+                            uploaded = storage_manager.upload_domain_data(domain, domain_data, year=year, sync_latest=False)
                         
                         logger.info(f"  已上传 {domain} ({year}): {uploaded}")
+                
+                # 所有年度文件上传完成后，统一同步 latest.json
+                logger.info("开始同步 latest.json...")
+                for domain in ['sermon', 'volunteer']:
+                    try:
+                        storage_manager._sync_latest_from_yearly(domain)
+                        logger.info(f"✅ 已同步 {domain}/latest.json")
+                    except Exception as e:
+                        logger.error(f"❌ 同步 {domain}/latest.json 失败: {e}")
                 
             except ImportError:
                 logger.warning("google-cloud-storage 未安装，跳过云存储上传")
