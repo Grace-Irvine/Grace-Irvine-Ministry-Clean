@@ -331,25 +331,32 @@ class DomainStorageManager:
             # 2. 合并所有年度数据
             all_records = []
             all_metadata = {}
-            
+
+            # 确定正确的记录字段名（volunteers 或 sermons）
+            record_field_name = f"{domain_name}s" if domain_name == "volunteer" else "sermons"
+
             for file_path in yearly_files:
                 try:
-                    # 下载年度文件
-                    year_data = self.gcs_client.download_json(file_path)
-                    
-                    # 合并记录
-                    if 'records' in year_data:
-                        all_records.extend(year_data['records'])
-                    
+                    # 下载年度文件（file_path 已经包含完整路径，需要移除 base_path）
+                    relative_path = file_path.replace(self.gcs_client.base_path, '', 1)
+                    year_data = self.gcs_client.download_json(relative_path)
+
+                    # 合并记录 - 尝试多种可能的字段名
+                    records = (year_data.get(record_field_name) or
+                              year_data.get('records') or
+                              year_data.get(domain_name + 's') or [])
+
+                    all_records.extend(records)
+
                     # 合并元数据（使用最新的）
                     if 'metadata' in year_data:
                         all_metadata.update(year_data['metadata'])
-                        
+
                 except Exception as e:
                     logger.warning(f"跳过文件 {file_path}: {e}")
                     continue
-            
-            # 3. 生成合并后的数据
+
+            # 3. 生成合并后的数据 - 使用正确的字段名
             merged_data = {
                 'metadata': {
                     **all_metadata,
@@ -358,7 +365,7 @@ class DomainStorageManager:
                     'source': 'merged_from_yearly',
                     'yearly_files': yearly_files
                 },
-                'records': all_records
+                record_field_name: all_records  # 使用 'volunteers' 或 'sermons'
             }
             
             # 4. 上传合并后的 latest.json

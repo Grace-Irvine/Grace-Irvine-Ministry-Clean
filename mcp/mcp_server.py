@@ -1416,18 +1416,35 @@ async def handle_call_tool(
                 "storage_config": STORAGE_CONFIG,
                 "script_dir": str(SCRIPT_DIR),
                 "logs_dir": str(LOGS_DIR),
-                "local_files": {}
+                "local_files": {},
+                "gcs_data_check": {}
             }
-            
+
             # 检查本地文件
             for domain in ['sermon', 'volunteer']:
                 latest_file = LOGS_DIR / f"{domain}.json"
-                diagnostic_info["local_files"][domain] = {
+                file_info = {
                     "latest_exists": latest_file.exists(),
                     "latest_path": str(latest_file),
                     "latest_size": latest_file.stat().st_size if latest_file.exists() else 0
                 }
-            
+
+                # 如果文件存在，读取记录数量和日期范围
+                if latest_file.exists():
+                    try:
+                        with open(latest_file, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                        records = data.get(f"{domain}s" if domain == "volunteer" else "sermons", [])
+                        file_info["record_count"] = len(records)
+                        if records:
+                            dates = [r.get("service_date", "") for r in records if r.get("service_date")]
+                            if dates:
+                                file_info["date_range"] = f"{min(dates)} to {max(dates)}"
+                    except Exception as e:
+                        file_info["read_error"] = str(e)
+
+                diagnostic_info["local_files"][domain] = file_info
+
             # 检查服务账号文件
             service_account_file = STORAGE_CONFIG.get('service_account_file')
             if service_account_file:
@@ -1436,18 +1453,19 @@ async def handle_call_tool(
                     sa_path = SCRIPT_DIR / service_account_file
                 diagnostic_info["service_account_file"] = str(sa_path)
                 diagnostic_info["service_account_exists"] = sa_path.exists()
-                
+
                 if sa_path.exists():
                     try:
                         with open(sa_path, 'r') as f:
                             sa_data = json.load(f)
                         diagnostic_info["service_account_valid"] = "project_id" in sa_data
                         diagnostic_info["project_id"] = sa_data.get("project_id", "unknown")
+                        diagnostic_info["service_account_email"] = sa_data.get("client_email", "unknown")
                     except Exception as e:
                         diagnostic_info["service_account_valid"] = False
                         diagnostic_info["service_account_error"] = str(e)
-            
-            # 如果 GCS 客户端已初始化，测试连接
+
+            # 如果 GCS 客户端已初始化，测试连接并检查数据
             if GCS_CLIENT:
                 try:
                     # 尝试列出文件
@@ -1455,15 +1473,76 @@ async def handle_call_tool(
                     diagnostic_info["gcs_connection_test"] = "success"
                     diagnostic_info["gcs_files_found"] = len(files)
                     diagnostic_info["gcs_sample_files"] = files[:5]  # 前5个文件
+
+                    # 尝试加载最新数据检查记录数量
+                    for domain in ['sermon', 'volunteer']:
+                        try:
+                            gcs_data = GCS_CLIENT.download_domain_data(domain, 'latest')
+                            records = gcs_data.get(f"{domain}s" if domain == "volunteer" else "sermons", [])
+                            dates = [r.get("service_date", "") for r in records if r.get("service_date")]
+                            diagnostic_info["gcs_data_check"][domain] = {
+                                "accessible": True,
+                                "record_count": len(records),
+                                "date_range": f"{min(dates)} to {max(dates)}" if dates else "no dates"
+                            }
+                        except Exception as e:
+                            diagnostic_info["gcs_data_check"][domain] = {
+                                "accessible": False,
+                                "error": str(e)
+                            }
+
                 except Exception as e:
                     diagnostic_info["gcs_connection_test"] = "failed"
                     diagnostic_info["gcs_error"] = str(e)
             else:
                 diagnostic_info["gcs_connection_test"] = "not_available"
-            
+
+            # 生成诊断文本报告
+            text_lines = ["🔍 GCS 连接诊断报告\n"]
+
+            # GCS 状态
+            if GCS_CLIENT:
+                text_lines.append("✅ GCS 客户端: 已初始化")
+                if diagnostic_info.get("gcs_connection_test") == "success":
+                    text_lines.append(f"✅ GCS 连接测试: 成功 (找到 {diagnostic_info['gcs_files_found']} 个文件)")
+                else:
+                    text_lines.append(f"❌ GCS 连接测试: 失败 - {diagnostic_info.get('gcs_error', 'Unknown')}")
+            else:
+                text_lines.append("❌ GCS 客户端: 未初始化")
+
+            # 数据源对比
+            text_lines.append("\n📊 数据源对比:")
+            for domain in ['sermon', 'volunteer']:
+                text_lines.append(f"\n  {domain.upper()}:")
+
+                # GCS 数据
+                gcs_info = diagnostic_info["gcs_data_check"].get(domain, {})
+                if gcs_info.get("accessible"):
+                    text_lines.append(f"    GCS: {gcs_info['record_count']} 条记录 ({gcs_info.get('date_range', 'N/A')})")
+                else:
+                    text_lines.append(f"    GCS: 无法访问 - {gcs_info.get('error', 'N/A')}")
+
+                # 本地数据
+                local_info = diagnostic_info["local_files"].get(domain, {})
+                if local_info.get("latest_exists"):
+                    text_lines.append(f"    本地: {local_info.get('record_count', 0)} 条记录 ({local_info.get('date_range', 'N/A')})")
+                else:
+                    text_lines.append("    本地: 无数据文件")
+
+            # 建议
+            text_lines.append("\n💡 建议:")
+            if not GCS_CLIENT:
+                text_lines.append("  • 检查 config/service-account.json 是否存在且有效")
+                text_lines.append("  • 检查 config/config.json 中的 storage 配置")
+            elif diagnostic_info.get("gcs_connection_test") == "failed":
+                text_lines.append("  • 检查网络连接")
+                text_lines.append("  • 验证服务账号权限 (需要 Storage Object Viewer 角色)")
+            else:
+                text_lines.append("  ✅ GCS 连接正常，数据可正常读取")
+
             return [types.TextContent(
                 type="text",
-                text="GCS 连接诊断完成",
+                text="\n".join(text_lines),
                 structuredContent={
                     "success": True,
                     "diagnostic": diagnostic_info,
