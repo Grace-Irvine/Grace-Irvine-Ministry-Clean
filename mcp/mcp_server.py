@@ -38,12 +38,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 
+# Import SSE transport module (must be after sys.path.insert)
+# Will be imported after project root is added to path
+
 # 添加项目根目录到 Python 路径 (for core/ imports)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # 导入应用层代码
 from core.clean_pipeline import CleaningPipeline
 from core.service_layer import ServiceLayerManager
+
+# Import SSE transport (after path is set)
+from sse_transport import handle_sse_session
 
 # 配置日志
 logging.basicConfig(
@@ -89,7 +95,7 @@ if STORAGE_CONFIG.get('provider') == 'gcs':
         # 转换服务账号文件路径为绝对路径
         service_account_file = STORAGE_CONFIG.get('service_account_file')
         if service_account_file and not Path(service_account_file).is_absolute():
-            service_account_file = str(SCRIPT_DIR / service_account_file)
+            service_account_file = str(PROJECT_ROOT / service_account_file)
         
         bucket_name = STORAGE_CONFIG.get('bucket', '')
         base_path = STORAGE_CONFIG.get('base_path', 'domains/')
@@ -105,26 +111,6 @@ if STORAGE_CONFIG.get('provider') == 'gcs':
     except Exception as e:
         logger.error(f"❌ Failed to initialize GCS client: {e}", exc_info=True)
         GCS_CLIENT = None
-
-# ============================================================
-# HTTP/SSE Pydantic Models
-# ============================================================
-
-class MCPRequest(BaseModel):
-    """MCP 请求模型（JSON-RPC 2.0）"""
-    jsonrpc: str = "2.0"
-    id: Optional[str | int] = None
-    method: str
-    params: Optional[Dict[str, Any]] = None
-
-
-class MCPResponse(BaseModel):
-    """MCP 响应模型（JSON-RPC 2.0）"""
-    jsonrpc: str = "2.0"
-    id: Optional[str | int] = None
-    result: Optional[Dict[str, Any]] = None
-    error: Optional[Dict[str, Any]] = None
-
 
 # ============================================================
 # HTTP Authentication
@@ -205,10 +191,10 @@ def get_role_display_name(role: str) -> str:
         'video_editor': '视频剪辑',
         
         # 儿童部相关
-        'assistant': '助教',  # 通用，不带数字
-        'assistant_1': '助教1',
-        'assistant_2': '助教2',
-        'assistant_3': '助教3',
+        'friday_child_ministry': '周五老师',
+        'sunday_child_assistant_1': '周日助教1',
+        'sunday_child_assistant_2': '周日助教2',
+        'sunday_child_assistant_3': '周日助教3',
         
         # 其他可能的历史字段
         'team': '同工',
@@ -224,10 +210,49 @@ def get_role_display_name(role: str) -> str:
     
     return fallback_mapping.get(role, role)
 
+
+def is_person_empty(person: Dict[str, str]) -> bool:
+    """
+    检查人员对象是否为空
+
+    Args:
+        person: 人员字典，包含 id 和 name 字段
+
+    Returns:
+        如果人员为空返回 True，否则返回 False
+    """
+    if not person:
+        return True
+
+    # 检查 id 和 name 是否都为空或空字符串
+    person_id = person.get('id', '').strip()
+    person_name = person.get('name', '').strip()
+
+    return not person_id and not person_name
+
+
+def is_team_empty(team: List[Dict[str, str]]) -> bool:
+    """
+    检查团队列表是否为空
+
+    Args:
+        team: 团队成员列表
+
+    Returns:
+        如果所有成员都为空返回 True，否则返回 False
+    """
+    if not team or not isinstance(team, list):
+        return True
+
+    # 检查是否所有成员都为空
+    return all(is_person_empty(person) for person in team)
+
+
 def load_service_layer_data(domain: str, year: Optional[str] = None) -> Dict[str, Any]:
     """
     加载服务层数据
     优先从 GCS 读取，如果失败则回退到本地文件
+    返回的数据包含 _data_source 字段标识数据来源
     """
     # 1. 尝试从 GCS 读取
     if GCS_CLIENT:
@@ -236,23 +261,33 @@ def load_service_layer_data(domain: str, year: Optional[str] = None) -> Dict[str
             logger.info(f"Loading {domain} data from GCS (version: {version})")
             data = GCS_CLIENT.download_domain_data(domain, version)
             logger.info(f"Successfully loaded {domain} from GCS")
+            # 添加数据源标识
+            data['_data_source'] = 'gcs'
+            data['_loaded_at'] = datetime.now().isoformat()
             return data
         except Exception as e:
             logger.warning(f"Failed to load from GCS, falling back to local: {e}")
-    
+    else:
+        logger.warning("GCS_CLIENT is None - using local files only")
+
     # 2. 回退到本地文件
     try:
         if year:
             data_path = LOGS_DIR / year / f"{domain}_{year}.json"
         else:
             data_path = LOGS_DIR / f"{domain}.json"
-        
+
         if not data_path.exists():
             return {"error": f"Data not found in GCS or local: {domain} (year={year})"}
-        
+
         logger.info(f"Loading {domain} data from local file: {data_path}")
         with open(data_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            data = json.load(f)
+        # 添加数据源标识
+        data['_data_source'] = 'local'
+        data['_loaded_at'] = datetime.now().isoformat()
+        data['_local_path'] = str(data_path)
+        return data
     except Exception as e:
         logger.error(f"Error loading service layer data: {e}")
         return {"error": str(e)}
@@ -360,21 +395,19 @@ def format_volunteer_record(record: Dict) -> str:
         dept_name = departments.get('education', {}).get('name', '儿童部')
         education_members = []
         
-        # 处理 assistants 数组（新的数据结构）
-        assistants = education.get('assistants', [])
-        if assistants and isinstance(assistants, list):
-            names = [assistant.get('name', 'N/A') for assistant in assistants if isinstance(assistant, dict) and assistant.get('name')]
+        # 周五老师
+        friday_child_ministry = education.get('friday_child_ministry', {})
+        if friday_child_ministry and friday_child_ministry.get('name'):
+            role_display = get_role_display_name('friday_child_ministry')
+            education_members.append(f"  • {role_display}: {friday_child_ministry['name']}")
+        
+        # 处理 sunday_child_assistants 数组（新的数据结构）
+        sunday_child_assistants = education.get('sunday_child_assistants', [])
+        if sunday_child_assistants and isinstance(sunday_child_assistants, list):
+            names = [assistant.get('name', 'N/A') for assistant in sunday_child_assistants if isinstance(assistant, dict) and assistant.get('name')]
             if names:
-                role_display = get_role_display_name('assistant_1')
+                role_display = get_role_display_name('sunday_child_assistant_1')
                 education_members.append(f"  • {role_display}: {', '.join(names)}")
-        else:
-            # 兼容旧的数据结构（单独的 assistant_1, assistant_2, assistant_3）
-            education_roles = departments.get('education', {}).get('roles', [])
-            for role_key in education_roles:
-                person = education.get(role_key, {})
-                if person and person.get('name'):
-                    role_display = get_role_display_name(role_key)
-                    education_members.append(f"  • {role_display}: {person['name']}")
         
         # 只有当有成员时才显示部门标题
         if education_members:
@@ -876,117 +909,22 @@ app.add_middleware(
 
 
 # ============================================================
-# HTTP MCP Protocol Handler
-# ============================================================
-
-async def handle_mcp_request(request: MCPRequest) -> MCPResponse:
-    """处理 MCP JSON-RPC 请求"""
-    try:
-        method = request.method
-        params = request.params or {}
-        
-        # 路由到对应的 MCP Server 处理器
-        if method == "tools/list":
-            result = await handle_list_tools()
-            return MCPResponse(
-                id=request.id,
-                result={"tools": [tool.model_dump() for tool in result]}
-            )
-        
-        elif method == "tools/call":
-            name = params.get("name")
-            arguments = params.get("arguments", {})
-            result = await handle_call_tool(name, arguments)
-            return MCPResponse(
-                id=request.id,
-                result={"content": [item.model_dump() for item in result]}
-            )
-        
-        elif method == "resources/list":
-            result = await handle_list_resources()
-            return MCPResponse(
-                id=request.id,
-                result={"resources": [res.model_dump() for res in result]}
-            )
-        
-        elif method == "resources/read":
-            uri = params.get("uri")
-            result = await handle_read_resource(uri)
-            return MCPResponse(
-                id=request.id,
-                result={"contents": [{"uri": uri, "mimeType": "application/json", "text": result}]}
-            )
-        
-        elif method == "prompts/list":
-            result = await handle_list_prompts()
-            return MCPResponse(
-                id=request.id,
-                result={"prompts": [prompt.model_dump() for prompt in result]}
-            )
-        
-        elif method == "prompts/get":
-            name = params.get("name")
-            arguments = params.get("arguments", {})
-            result = await handle_get_prompt(name, arguments)
-            return MCPResponse(
-                id=request.id,
-                result=result.model_dump()
-            )
-        
-        elif method == "initialize":
-            return MCPResponse(
-                id=request.id,
-                result={
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {
-                        "tools": {"listChanged": True},
-                        "resources": {"subscribe": False, "listChanged": True},
-                        "prompts": {"listChanged": True}
-                    },
-                    "serverInfo": {
-                        "name": "ministry-data",
-                        "version": "2.0.0"
-                    }
-                }
-            )
-        
-        else:
-            return MCPResponse(
-                id=request.id,
-                error={
-                    "code": -32601,
-                    "message": f"Method not found: {method}"
-                }
-            )
-    
-    except Exception as e:
-        logger.error(f"Error handling MCP request: {e}")
-        return MCPResponse(
-            id=request.id,
-            error={
-                "code": -32603,
-                "message": f"Internal error: {str(e)}"
-            }
-        )
-
-
-# ============================================================
 # HTTP Endpoints
 # ============================================================
 
 @app.get("/")
 async def root():
-    """根端点"""
+    """根端点 - 服务器信息"""
     return {
         "service": "Ministry Data MCP Server",
         "version": "2.0.0",
         "protocol": "MCP (Model Context Protocol)",
-        "transports": ["stdio", "HTTP/SSE"],
+        "transports": ["stdio", "SSE"],
         "endpoints": {
-            "mcp": "/mcp",
-            "capabilities": "/mcp/capabilities",
+            "sse": "/sse",
             "health": "/health"
-        }
+        },
+        "description": "Use POST /sse with MCP JSON-RPC messages for OpenAI integration"
     }
 
 
@@ -1000,55 +938,42 @@ async def health_check():
     }
 
 
-@app.get("/mcp/capabilities")
-async def get_capabilities(authorized: bool = Depends(verify_bearer_token)):
-    """获取 MCP 服务器能力"""
-    return {
-        "protocolVersion": "2024-11-05",
-        "capabilities": {
-            "tools": {"listChanged": True},
-            "resources": {"subscribe": False, "listChanged": True},
-            "prompts": {"listChanged": True}
-        },
-        "serverInfo": {
-            "name": "ministry-data",
-            "version": "2.0.0",
-            "description": "Church Ministry Data Management MCP Server"
-        }
+@app.post("/sse")
+async def sse_endpoint(
+    request: Request,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    MCP SSE endpoint for OpenAI integration
+    
+    Accepts MCP JSON-RPC messages via POST and streams responses via SSE.
+    Requires Bearer token authentication if MCP_REQUIRE_AUTH=true.
+    """
+    # Verify bearer token
+    if REQUIRE_AUTH:
+        if not authorization:
+            raise HTTPException(status_code=401, detail="Missing authorization header")
+        
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Invalid authorization header format")
+        
+        token = authorization.replace("Bearer ", "")
+        
+        if BEARER_TOKEN and token != BEARER_TOKEN:
+            raise HTTPException(status_code=401, detail="Invalid bearer token")
+    
+    # Create handlers dict for SSE transport
+    handlers = {
+        "list_tools": handle_list_tools,
+        "call_tool": handle_call_tool,
+        "list_resources": handle_list_resources,
+        "read_resource": handle_read_resource,
+        "list_prompts": handle_list_prompts,
+        "get_prompt": handle_get_prompt
     }
-
-
-@app.post("/mcp")
-async def mcp_endpoint(
-    request: MCPRequest,
-    authorized: bool = Depends(verify_bearer_token)
-) -> MCPResponse:
-    """MCP JSON-RPC 端点（HTTP POST）- 支持 SSE"""
-    return await handle_mcp_request(request)
-
-
-@app.get("/mcp/tools")
-async def list_tools_endpoint(authorized: bool = Depends(verify_bearer_token)):
-    """列出所有工具（便捷端点）"""
-    request = MCPRequest(method="tools/list")
-    response = await handle_mcp_request(request)
-    return response.result
-
-
-@app.get("/mcp/resources")
-async def list_resources_endpoint(authorized: bool = Depends(verify_bearer_token)):
-    """列出所有资源（便捷端点）"""
-    request = MCPRequest(method="resources/list")
-    response = await handle_mcp_request(request)
-    return response.result
-
-
-@app.get("/mcp/prompts")
-async def list_prompts_endpoint(authorized: bool = Depends(verify_bearer_token)):
-    """列出所有提示词（便捷端点）"""
-    request = MCPRequest(method="prompts/list")
-    response = await handle_mcp_request(request)
-    return response.result
+    
+    # Handle SSE session
+    return await handle_sse_session(server, request, handlers)
 
 
 # ============================================================
@@ -1297,6 +1222,20 @@ async def handle_list_tools() -> list[types.Tool]:
                 "openai/toolInvocation/invoking": "正在分析同工趋势...",
                 "openai/toolInvocation/invoked": "分析完成"
             }
+        ),
+        # ========== 诊断工具 ==========
+        types.Tool(
+            name="diagnose_gcs_connection",
+            description="诊断 GCS 连接状态和数据源",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            meta={
+                "openai/toolInvocation/invoking": "正在诊断 GCS 连接...",
+                "openai/toolInvocation/invoked": "诊断完成"
+            }
         )
     ]
 
@@ -1348,7 +1287,12 @@ async def handle_call_tool(
                     "success": True,
                     "date": date,
                     "assignments": result,
-                    "count": len(result)
+                    "count": len(result),
+                    "data_source": {
+                        "source": data.get("_data_source", "unknown"),
+                        "loaded_at": data.get("_loaded_at", "unknown"),
+                        "total_records": len(volunteers)
+                    }
                 }
             )]
         
@@ -1390,7 +1334,12 @@ async def handle_call_tool(
                     "success": True,
                     "date": date,
                     "sermons": result,
-                    "count": len(result)
+                    "count": len(result),
+                    "data_source": {
+                        "source": data.get("_data_source", "unknown"),
+                        "loaded_at": data.get("_loaded_at", "unknown"),
+                        "total_records": len(sermons)
+                    }
                 }
             )]
         
@@ -1455,6 +1404,153 @@ async def handle_call_tool(
                     "end_date": end_date,
                     "results": results,
                     "total_count": total_count
+                }
+            )]
+        
+        elif name == "diagnose_gcs_connection":
+            """诊断 GCS 连接状态"""
+            diagnostic_info = {
+                "gcs_client_status": "initialized" if GCS_CLIENT else "not_initialized",
+                "config_path": CONFIG_PATH,
+                "config_exists": Path(CONFIG_PATH).exists(),
+                "storage_config": STORAGE_CONFIG,
+                "script_dir": str(SCRIPT_DIR),
+                "logs_dir": str(LOGS_DIR),
+                "local_files": {},
+                "gcs_data_check": {}
+            }
+
+            # 检查本地文件
+            for domain in ['sermon', 'volunteer']:
+                latest_file = LOGS_DIR / f"{domain}.json"
+                file_info = {
+                    "latest_exists": latest_file.exists(),
+                    "latest_path": str(latest_file),
+                    "latest_size": latest_file.stat().st_size if latest_file.exists() else 0
+                }
+
+                # 如果文件存在，读取记录数量和日期范围
+                if latest_file.exists():
+                    try:
+                        with open(latest_file, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                        records = data.get(f"{domain}s" if domain == "volunteer" else "sermons", [])
+                        file_info["record_count"] = len(records)
+                        if records:
+                            dates = [r.get("service_date", "") for r in records if r.get("service_date")]
+                            if dates:
+                                file_info["date_range"] = f"{min(dates)} to {max(dates)}"
+                    except Exception as e:
+                        file_info["read_error"] = str(e)
+
+                diagnostic_info["local_files"][domain] = file_info
+
+            # 检查服务账号文件
+            service_account_file = STORAGE_CONFIG.get('service_account_file')
+            if service_account_file:
+                sa_path = Path(service_account_file)
+                if not sa_path.is_absolute():
+                    sa_path = SCRIPT_DIR / service_account_file
+                diagnostic_info["service_account_file"] = str(sa_path)
+                diagnostic_info["service_account_exists"] = sa_path.exists()
+
+                if sa_path.exists():
+                    try:
+                        with open(sa_path, 'r') as f:
+                            sa_data = json.load(f)
+                        diagnostic_info["service_account_valid"] = "project_id" in sa_data
+                        diagnostic_info["project_id"] = sa_data.get("project_id", "unknown")
+                        diagnostic_info["service_account_email"] = sa_data.get("client_email", "unknown")
+                    except Exception as e:
+                        diagnostic_info["service_account_valid"] = False
+                        diagnostic_info["service_account_error"] = str(e)
+
+            # 如果 GCS 客户端已初始化，测试连接并检查数据
+            if GCS_CLIENT:
+                try:
+                    # 尝试列出文件
+                    files = GCS_CLIENT.list_domain_files("sermon")
+                    diagnostic_info["gcs_connection_test"] = "success"
+                    diagnostic_info["gcs_files_found"] = len(files)
+                    diagnostic_info["gcs_sample_files"] = files[:5]  # 前5个文件
+
+                    # 尝试加载最新数据检查记录数量
+                    for domain in ['sermon', 'volunteer']:
+                        try:
+                            gcs_data = GCS_CLIENT.download_domain_data(domain, 'latest')
+                            records = gcs_data.get(f"{domain}s" if domain == "volunteer" else "sermons", [])
+                            dates = [r.get("service_date", "") for r in records if r.get("service_date")]
+                            diagnostic_info["gcs_data_check"][domain] = {
+                                "accessible": True,
+                                "record_count": len(records),
+                                "date_range": f"{min(dates)} to {max(dates)}" if dates else "no dates"
+                            }
+                        except Exception as e:
+                            diagnostic_info["gcs_data_check"][domain] = {
+                                "accessible": False,
+                                "error": str(e)
+                            }
+
+                except Exception as e:
+                    diagnostic_info["gcs_connection_test"] = "failed"
+                    diagnostic_info["gcs_error"] = str(e)
+            else:
+                diagnostic_info["gcs_connection_test"] = "not_available"
+
+            # 生成诊断文本报告
+            text_lines = ["🔍 GCS 连接诊断报告\n"]
+
+            # GCS 状态
+            if GCS_CLIENT:
+                text_lines.append("✅ GCS 客户端: 已初始化")
+                if diagnostic_info.get("gcs_connection_test") == "success":
+                    text_lines.append(f"✅ GCS 连接测试: 成功 (找到 {diagnostic_info['gcs_files_found']} 个文件)")
+                else:
+                    text_lines.append(f"❌ GCS 连接测试: 失败 - {diagnostic_info.get('gcs_error', 'Unknown')}")
+            else:
+                text_lines.append("❌ GCS 客户端: 未初始化")
+
+            # 数据源对比
+            text_lines.append("\n📊 数据源对比:")
+            for domain in ['sermon', 'volunteer']:
+                text_lines.append(f"\n  {domain.upper()}:")
+
+                # GCS 数据
+                gcs_info = diagnostic_info["gcs_data_check"].get(domain, {})
+                if gcs_info.get("accessible"):
+                    text_lines.append(f"    GCS: {gcs_info['record_count']} 条记录 ({gcs_info.get('date_range', 'N/A')})")
+                else:
+                    text_lines.append(f"    GCS: 无法访问 - {gcs_info.get('error', 'N/A')}")
+
+                # 本地数据
+                local_info = diagnostic_info["local_files"].get(domain, {})
+                if local_info.get("latest_exists"):
+                    text_lines.append(f"    本地: {local_info.get('record_count', 0)} 条记录 ({local_info.get('date_range', 'N/A')})")
+                else:
+                    text_lines.append("    本地: 无数据文件")
+
+            # 建议
+            text_lines.append("\n💡 建议:")
+            if not GCS_CLIENT:
+                text_lines.append("  • 检查 config/service-account.json 是否存在且有效")
+                text_lines.append("  • 检查 config/config.json 中的 storage 配置")
+            elif diagnostic_info.get("gcs_connection_test") == "failed":
+                text_lines.append("  • 检查网络连接")
+                text_lines.append("  • 验证服务账号权限 (需要 Storage Object Viewer 角色)")
+            else:
+                text_lines.append("  ✅ GCS 连接正常，数据可正常读取")
+
+            return [types.TextContent(
+                type="text",
+                text="\n".join(text_lines),
+                structuredContent={
+                    "success": True,
+                    "diagnostic": diagnostic_info,
+                    "recommendations": [
+                        "如果 GCS_CLIENT 未初始化，检查服务账号文件和权限",
+                        "如果本地文件存在但 GCS 连接失败，检查网络和认证",
+                        "如果数据不一致，运行 pipeline 重新同步数据"
+                    ]
                 }
             )]
         
@@ -1697,37 +1793,37 @@ async def handle_call_tool(
                 gaps = []
                 for record in future_volunteers:
                     service_date = record.get("service_date")
-                    
+
                     # 检查敬拜相关岗位
                     worship = record.get("worship", {})
                     if worship:
                         # 敬拜主领
                         lead = worship.get("lead", {})
-                        if not lead.get("id"):
+                        if is_person_empty(lead):
                             gaps.append({
                                 "date": service_date,
                                 "role": "worship_lead",
                                 "status": "vacant"
                             })
-                        
+
                         # 敬拜同工
                         team = worship.get("team", [])
-                        if not team or (isinstance(team, list) and len(team) == 0):
+                        if is_team_empty(team):
                             gaps.append({
                                 "date": service_date,
                                 "role": "worship_team",
                                 "status": "vacant"
                             })
-                        
+
                         # 司琴
                         pianist = worship.get("pianist", {})
-                        if not pianist.get("id"):
+                        if is_person_empty(pianist):
                             gaps.append({
                                 "date": service_date,
                                 "role": "pianist",
                                 "status": "vacant"
                             })
-                    
+
                     # 检查技术相关岗位
                     technical = record.get("technical", {})
                     if technical:
@@ -1735,16 +1831,38 @@ async def handle_call_tool(
                         technical_roles = departments.get('technical', {}).get('roles', [])
                         for tech_role in technical_roles:
                             person = technical.get(tech_role, {})
-                            if not person.get("id"):
+                            if is_person_empty(person):
                                 gaps.append({
                                     "date": service_date,
                                     "role": tech_role,
                                     "status": "vacant"
                                 })
-                
+
+                    # 检查儿童部岗位
+                    education = record.get("education", {})
+                    if education:
+                        # 周五儿童事工
+                        friday_ministry = education.get("friday_child_ministry", {})
+                        if is_person_empty(friday_ministry):
+                            gaps.append({
+                                "date": service_date,
+                                "role": "friday_child_ministry",
+                                "status": "vacant"
+                            })
+
+                        # 周日助教（检查是否至少有一个）
+                        sunday_assistants = education.get("sunday_child_assistants", [])
+                        if is_team_empty(sunday_assistants):
+                            gaps.append({
+                                "date": service_date,
+                                "role": "sunday_child_assistant",
+                                "status": "vacant"
+                            })
+
                 # 检查证道空缺
                 for sermon in future_sermons:
-                    if not sermon.get("preacher", {}).get("name"):
+                    preacher = sermon.get("preacher", {})
+                    if is_person_empty(preacher):
                         gaps.append({
                             "date": sermon.get("service_date"),
                             "role": "preacher",
@@ -1783,7 +1901,12 @@ async def handle_call_tool(
                         "weeks_ahead": weeks_ahead,
                         "gaps": gaps,
                         "gap_count": len(gaps),
-                        "date_range": {"start": start_date, "end": end_date_str}
+                        "date_range": {"start": start_date, "end": end_date_str},
+                        "data_source": {
+                            "volunteer": volunteer_data.get("_data_source", "unknown"),
+                            "sermon": sermon_data.get("_data_source", "unknown"),
+                            "loaded_at": volunteer_data.get("_loaded_at", "")
+                        }
                     }
                 )]
             except Exception as e:
@@ -1853,44 +1976,53 @@ async def handle_call_tool(
             if day_volunteers:
                 volunteer = day_volunteers[0]
                 text_lines.append("\n👥 同工安排:")
-                
+
                 # 敬拜团队
                 worship = volunteer.get('worship', {})
-                if worship:
-                    text_lines.append("  🎵 敬拜团队:")
-                    if worship.get('lead', {}).get('name'):
-                        role_display = get_role_display_name('worship_lead')
-                        text_lines.append(f"    • {role_display}: {worship['lead']['name']}")
-                    if worship.get('team'):
-                        names = [m.get('name') for m in worship['team'] if m.get('name')]
-                        if names:
-                            # 使用更通用的显示名称
-                            role_display = get_role_display_name('worship_team')
-                            text_lines.append(f"    • {role_display}: {', '.join(names)}")
-                    if worship.get('pianist', {}).get('name'):
-                        role_display = get_role_display_name('pianist')
-                        text_lines.append(f"    • {role_display}: {worship['pianist']['name']}")
-                
+                text_lines.append("  🎵 敬拜团队:")
+
+                lead = worship.get('lead', {})
+                role_display = get_role_display_name('worship_lead')
+                lead_name = lead.get('name', '').strip() if lead else ''
+                text_lines.append(f"    • {role_display}: {lead_name if lead_name else '待定'}")
+
+                team = worship.get('team', [])
+                names = [m.get('name', '').strip() for m in team if m.get('name', '').strip()]
+                role_display = get_role_display_name('worship_team')
+                text_lines.append(f"    • {role_display}: {', '.join(names) if names else '待定'}")
+
+                pianist = worship.get('pianist', {})
+                role_display = get_role_display_name('pianist')
+                pianist_name = pianist.get('name', '').strip() if pianist else ''
+                text_lines.append(f"    • {role_display}: {pianist_name if pianist_name else '待定'}")
+
                 # 媒体团队
                 technical = volunteer.get('technical', {})
-                if technical:
-                    text_lines.append("  📺 媒体团队:")
-                    # 直接遍历technical对象中的所有字段
-                    for tech_role, person in technical.items():
-                        # 跳过department字段
-                        if tech_role == 'department':
-                            continue
-                        if person and isinstance(person, dict) and person.get('name') and person['name'].strip():
-                            role_display_name = get_role_display_name(tech_role)
-                            text_lines.append(f"    • {role_display_name}: {person['name']}")
-                
+                text_lines.append("  📺 媒体团队:")
+
+                # 定义媒体团队的所有岗位（按顺序）
+                tech_roles = ['audio', 'video', 'propresenter_play', 'propresenter_update', 'video_editor']
+                for tech_role in tech_roles:
+                    person = technical.get(tech_role, {})
+                    role_display_name = get_role_display_name(tech_role)
+                    person_name = person.get('name', '').strip() if person else ''
+                    text_lines.append(f"    • {role_display_name}: {person_name if person_name else '待定'}")
+
                 # 儿童事工
                 education = volunteer.get('education', {})
-                if education and education.get('assistants'):
-                    text_lines.append("  👶 儿童事工:")
-                    for assistant in education['assistants']:
-                        if assistant.get('name'):
-                            text_lines.append(f"    • 同工: {assistant['name']}")
+                text_lines.append("  👶 儿童事工:")
+
+                # 周五儿童事工
+                friday_ministry = education.get('friday_child_ministry', {})
+                role_display = get_role_display_name('friday_child_ministry')
+                friday_name = friday_ministry.get('name', '').strip() if friday_ministry else ''
+                text_lines.append(f"    • {role_display}: {friday_name if friday_name else '待定'}")
+
+                # 周日助教
+                sunday_assistants = education.get('sunday_child_assistants', [])
+                assistant_names = [a.get('name', '').strip() for a in sunday_assistants if a.get('name', '').strip()]
+                role_display = get_role_display_name('sunday_child_assistant')
+                text_lines.append(f"    • {role_display}: {', '.join(assistant_names) if assistant_names else '待定'}")
             else:
                 text_lines.append("\n👥 同工安排: 待定")
             
@@ -1902,7 +2034,12 @@ async def handle_call_tool(
                     "date": date,
                     "format": format_type,
                     "sermon_info": day_sermons[0] if day_sermons else None,
-                    "volunteer_info": day_volunteers[0] if day_volunteers else None
+                    "volunteer_info": day_volunteers[0] if day_volunteers else None,
+                    "data_source": {
+                        "volunteer": volunteer_data.get("_data_source", "unknown"),
+                        "sermon": sermon_data.get("_data_source", "unknown"),
+                        "loaded_at": volunteer_data.get("_loaded_at", "")
+                    }
                 }
             )]
         

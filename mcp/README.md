@@ -56,7 +56,7 @@ unset PORT && python mcp_server.py
   "mcpServers": {
     "ministry-data": {
       "command": "python",
-      "args": ["/path/to/Grace-Irvine-Ministry-Clean/mcp_local/mcp_server.py"]
+      "args": ["/path/to/Grace-Irvine-Ministry-Clean/mcp/mcp_server.py"]
     }
   }
 }

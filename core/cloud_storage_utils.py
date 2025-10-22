@@ -245,7 +245,8 @@ class DomainStorageManager:
         self,
         domain_name: str,
         domain_data: Dict[str, Any],
-        year: Optional[int] = None
+        year: Optional[int] = None,
+        sync_latest: bool = True
     ) -> Dict[str, str]:
         """
         上传领域数据到 Cloud Storage
@@ -254,6 +255,7 @@ class DomainStorageManager:
             domain_name: 领域名称（如 "sermon" 或 "volunteer"）
             domain_data: 领域数据字典
             year: 年份（从数据中自动提取，或手动指定）
+            sync_latest: 是否同步更新 latest.json
             
         Returns:
             上传的文件路径字典
@@ -268,16 +270,22 @@ class DomainStorageManager:
                 if start_date:
                     year = int(start_date.split('-')[0])
         
-        # 1. 上传 latest.json
-        latest_path = f"{domain_name}/latest.json"
-        gs_path = self.gcs_client.upload_json(domain_data, latest_path)
-        uploaded_files['latest'] = gs_path
-        
-        # 2. 上传年度文件（如果有年份）
+        # 1. 上传年度文件（如果有年份）
         if year:
             yearly_path = f"{domain_name}/{year}/{domain_name}_{year}.json"
             gs_path = self.gcs_client.upload_json(domain_data, yearly_path)
             uploaded_files['yearly'] = gs_path
+            
+            # 如果启用同步，更新 latest.json
+            if sync_latest:
+                logger.info(f"同步更新 {domain_name}/latest.json...")
+                self._sync_latest_from_yearly(domain_name)
+        
+        # 2. 如果是 latest 数据，直接上传
+        else:
+            latest_path = f"{domain_name}/latest.json"
+            gs_path = self.gcs_client.upload_json(domain_data, latest_path)
+            uploaded_files['latest'] = gs_path
         
         logger.info(f"领域数据上传完成: {domain_name}")
         
@@ -303,6 +311,72 @@ class DomainStorageManager:
             results[domain_name] = uploaded
         
         return results
+    
+    def _sync_latest_from_yearly(self, domain_name: str) -> None:
+        """
+        从年度文件同步更新 latest.json
+        
+        Args:
+            domain_name: 领域名称
+        """
+        try:
+            # 1. 获取所有年度文件
+            yearly_files = self.gcs_client.list_files(f"{domain_name}/")
+            yearly_files = [f for f in yearly_files if f.endswith('.json') and '/' in f]
+            
+            if not yearly_files:
+                logger.warning(f"未找到 {domain_name} 的年度文件")
+                return
+            
+            # 2. 合并所有年度数据
+            all_records = []
+            all_metadata = {}
+
+            # 确定正确的记录字段名（volunteers 或 sermons）
+            record_field_name = f"{domain_name}s" if domain_name == "volunteer" else "sermons"
+
+            for file_path in yearly_files:
+                try:
+                    # 下载年度文件（file_path 已经包含完整路径，需要移除 base_path）
+                    relative_path = file_path.replace(self.gcs_client.base_path, '', 1)
+                    year_data = self.gcs_client.download_json(relative_path)
+
+                    # 合并记录 - 尝试多种可能的字段名
+                    records = (year_data.get(record_field_name) or
+                              year_data.get('records') or
+                              year_data.get(domain_name + 's') or [])
+
+                    all_records.extend(records)
+
+                    # 合并元数据（使用最新的）
+                    if 'metadata' in year_data:
+                        all_metadata.update(year_data['metadata'])
+
+                except Exception as e:
+                    logger.warning(f"跳过文件 {file_path}: {e}")
+                    continue
+
+            # 3. 生成合并后的数据 - 使用正确的字段名
+            merged_data = {
+                'metadata': {
+                    **all_metadata,
+                    'record_count': len(all_records),
+                    'last_updated': datetime.now(timezone.utc).isoformat(),
+                    'source': 'merged_from_yearly',
+                    'yearly_files': yearly_files
+                },
+                record_field_name: all_records  # 使用 'volunteers' 或 'sermons'
+            }
+            
+            # 4. 上传合并后的 latest.json
+            latest_path = f"{domain_name}/latest.json"
+            self.gcs_client.upload_json(merged_data, latest_path)
+            
+            logger.info(f"✅ 已同步 {domain_name}/latest.json (合并了 {len(yearly_files)} 个年度文件)")
+            
+        except Exception as e:
+            logger.error(f"❌ 同步 {domain_name}/latest.json 失败: {e}")
+    
     
     def download_domain_data(
         self,

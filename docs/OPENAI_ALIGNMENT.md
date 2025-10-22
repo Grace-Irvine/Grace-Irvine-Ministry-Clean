@@ -4,9 +4,10 @@
 
 本项目的 MCP 服务器已成功对齐到 OpenAI Apps SDK 标准，可以与 ChatGPT 无缝集成。
 
-## 完成日期
+## 更新日期
 
-2025-10-10
+- **2025-10-10**: 初始对齐（工具元数据、响应格式）
+- **2025-10-22**: SSE Transport 实现完成
 
 ## 修改内容
 
@@ -74,6 +75,46 @@ return [types.TextContent(
 `mcp_http_server.py` 使用 `model_dump()` 自动序列化，已验证正确处理新字段：
 - ✅ `meta` 字段正确序列化到 JSON
 - ✅ `structuredContent` 字段保持为字典对象（不转为字符串）
+
+### 4. SSE Transport 实现 ✅ (2025-10-22)
+
+实现了标准的 Server-Sent Events (SSE) 传输协议，符合 MCP 官方规范：
+
+**创建文件：**
+- `mcp/sse_transport.py` - SSE 传输层实现
+
+**修改文件：**
+- `mcp/mcp_server.py` - 添加 `/sse` 端点，移除旧的 REST 端点
+
+**主要改进：**
+- ✅ `/sse` 端点：使用 POST + SSE 流式响应
+- ✅ 移除不兼容的 REST 端点（`/mcp`, `/mcp/tools`, `/mcp/resources`, `/mcp/prompts`）
+- ✅ Bearer Token 认证：支持 OpenAI 标准认证
+- ✅ JSON-RPC 2.0 协议：完整支持 MCP 协议
+- ✅ 异步流式处理：使用 `sse-starlette` 库
+- ✅ 错误处理：完整的错误捕获和响应
+
+**SSE 端点特性：**
+```python
+@app.post("/sse")
+async def sse_endpoint(
+    request: Request,
+    authorization: Optional[str] = Header(None)
+):
+    """MCP SSE endpoint for OpenAI integration"""
+    # Bearer token authentication
+    # SSE streaming response
+    # MCP protocol handling
+```
+
+**支持的 MCP 方法：**
+- `initialize` - 初始化握手
+- `tools/list` - 列出工具
+- `tools/call` - 调用工具
+- `resources/list` - 列出资源
+- `resources/read` - 读取资源
+- `prompts/list` - 列出提示词
+- `prompts/get` - 获取提示词
 
 ## 测试验证
 
@@ -190,20 +231,54 @@ curl -X POST http://localhost:8080/mcp \
 ### 本地测试
 
 ```bash
-# 运行 stdio 模式
-python3 mcp_server.py
+# 运行 stdio 模式（Claude Desktop）
+python3 mcp/mcp_server.py
 
-# 运行 HTTP 模式
-python3 mcp_http_server.py
+# 运行 HTTP/SSE 模式（OpenAI 测试）
+PORT=8080 MCP_BEARER_TOKEN=test-token python3 mcp/mcp_server.py --http
 ```
 
 ### Cloud Run 部署
 
-现有的部署脚本无需修改：
+部署到 Cloud Run（推荐用于 OpenAI 集成）：
 
 ```bash
-./deploy-mcp-cloud-run.sh
+cd mcp
+
+gcloud run deploy ministry-data-mcp \
+  --source . \
+  --region=us-central1 \
+  --platform=managed \
+  --allow-unauthenticated \
+  --set-env-vars="MCP_BEARER_TOKEN=<your-secret-token>,MCP_REQUIRE_AUTH=true"
 ```
+
+### OpenAI 集成测试
+
+1. **部署到 Cloud Run**（如上）
+
+2. **获取服务 URL**：
+   ```bash
+   gcloud run services describe ministry-data-mcp \
+     --region=us-central1 \
+     --format='value(status.url)'
+   ```
+
+3. **在 OpenAI ChatGPT 中添加 MCP**：
+   - 打开 ChatGPT 设置
+   - 导航到 **Model Context Protocol (MCP)**
+   - 点击 **Add MCP Server**
+   - 输入：
+     - **Server Name**: `Ministry Data`
+     - **Server URL**: `https://your-service-url.run.app/sse`
+     - **Authentication**: `Bearer Token`
+     - **Token**: `<your-token>`
+
+4. **验证连接**：
+   - OpenAI 应显示 "✅ Connected"
+   - 应显示 "11 tools available"
+
+详细步骤见 [OPENAI_SETUP.md](OPENAI_SETUP.md)
 
 ## 下一步（可选）
 
