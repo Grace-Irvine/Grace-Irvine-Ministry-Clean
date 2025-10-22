@@ -112,7 +112,7 @@ Authorization: Bearer <your-token>
      --format='value(spec.template.spec.containers[0].env[?name=="MCP_BEARER_TOKEN"].value)'
    ```
 
-2. Or check your deployment configuration in `mcp_local/cloudbuild.yaml`
+2. Or check your deployment configuration in `mcp/cloudbuild.yaml`
 
 ### Security Notes
 
@@ -167,7 +167,7 @@ cd /path/to/Grace-Irvine-Ministry-Clean
 
 # Deploy with bearer token
 gcloud run deploy ministry-data-mcp \
-  --source ./mcp_local \
+  --source ./mcp \
   --region=us-central1 \
   --platform=managed \
   --allow-unauthenticated \

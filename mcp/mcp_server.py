@@ -49,7 +49,7 @@ from core.clean_pipeline import CleaningPipeline
 from core.service_layer import ServiceLayerManager
 
 # Import SSE transport (after path is set)
-from mcp_local.sse_transport import handle_sse_session
+from sse_transport import handle_sse_session
 
 # 配置日志
 logging.basicConfig(
@@ -95,7 +95,7 @@ if STORAGE_CONFIG.get('provider') == 'gcs':
         # 转换服务账号文件路径为绝对路径
         service_account_file = STORAGE_CONFIG.get('service_account_file')
         if service_account_file and not Path(service_account_file).is_absolute():
-            service_account_file = str(SCRIPT_DIR / service_account_file)
+            service_account_file = str(PROJECT_ROOT / service_account_file)
         
         bucket_name = STORAGE_CONFIG.get('bucket', '')
         base_path = STORAGE_CONFIG.get('base_path', 'domains/')
@@ -1287,7 +1287,12 @@ async def handle_call_tool(
                     "success": True,
                     "date": date,
                     "assignments": result,
-                    "count": len(result)
+                    "count": len(result),
+                    "data_source": {
+                        "source": data.get("_data_source", "unknown"),
+                        "loaded_at": data.get("_loaded_at", "unknown"),
+                        "total_records": len(volunteers)
+                    }
                 }
             )]
         
@@ -1329,7 +1334,12 @@ async def handle_call_tool(
                     "success": True,
                     "date": date,
                     "sermons": result,
-                    "count": len(result)
+                    "count": len(result),
+                    "data_source": {
+                        "source": data.get("_data_source", "unknown"),
+                        "loaded_at": data.get("_loaded_at", "unknown"),
+                        "total_records": len(sermons)
+                    }
                 }
             )]
         

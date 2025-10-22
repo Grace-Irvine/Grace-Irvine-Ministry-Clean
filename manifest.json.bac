@@ -20,8 +20,8 @@
   "files": [
     "config/config.json",
     "config/service-account.json",
-    "mcp_local/mcp_server.py",
-    "mcp_local/sse_transport.py",
+    "mcp/mcp_server.py",
+    "mcp/sse_transport.py",
     "core/clean_pipeline.py",
     "core/service_layer.py",
     "core/cloud_storage_utils.py",
@@ -39,10 +39,10 @@
   ],
   "server": {
     "type": "python",
-    "entry_point": "mcp_local/mcp_server.py",
+    "entry_point": "mcp/mcp_server.py",
     "mcp_config": {
       "command": "python3",
-      "args": ["${__dirname}/mcp_local/mcp_server.py"],
+      "args": ["${__dirname}/mcp/mcp_server.py"],
       "env": {
         "GOOGLE_APPLICATION_CREDENTIALS": "${__dirname}/config/service-account.json",
         "CONFIG_PATH": "${__dirname}/config/config.json"
