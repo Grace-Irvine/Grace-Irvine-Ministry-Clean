@@ -16,6 +16,9 @@ ENV/
 !README.md
 docs/
 
+deploy/
+examples/
+
 # Tests
 tests/
 test/
@@ -60,8 +63,6 @@ Dockerfile
 .DS_Store
 
 # Example and config files (users need to provide their own)
-config/service-account.json
-config/config.json
 .env
 .env.*
 
@@ -70,6 +71,7 @@ mcp_http_server.py
 
 # Examples
 examples/
+config/env.example
 
 # Temporary files
 *.tmp

@@ -75,7 +75,7 @@ Grace-Irvine-Ministry-Clean/
 │   ├── __init__.py               # Python包标识
 │   └── README.md                 # API服务文档
 │
-├── mcp_local/                    # MCP服务
+├── mcp/                    # MCP服务
 │   ├── mcp_server.py             # 统一服务器（stdio + HTTP/SSE）
 │   ├── Dockerfile                # MCP专用Dockerfile
 │   ├── __init__.py               # Python包标识
@@ -138,7 +138,7 @@ Grace-Irvine-Ministry-Clean/
 - 端口: 8080
 - 资源: 1GB内存, 1 CPU
 
-### 2. MCP服务 (mcp_local/)
+### 2. MCP服务 (mcp/)
 
 **职责**: AI助手集成，提供MCP协议接口
 
@@ -155,7 +155,7 @@ Grace-Irvine-Ministry-Clean/
 - AsyncIO - 异步处理
 
 #### 部署
-- 独立Dockerfile: `mcp_local/Dockerfile`
+- 独立Dockerfile: `mcp/Dockerfile`
 - Cloud Run服务名: `ministry-data-mcp`
 - 端口: 8080
 - 资源: 512MB内存, 1 CPU
@@ -260,7 +260,7 @@ JSON Response
 ```
 AI助手
    ↓ (MCP协议: stdio/HTTP/SSE)
-mcp_local/mcp_server.py
+mcp/mcp_server.py
    ↓
 core/* (业务逻辑)
    ↓
@@ -298,7 +298,7 @@ AI助手
 │  │  - Memory: 512MB             │  │
 │  │  - CPU: 1                    │  │
 │  │  - Max Instances: 10         │  │
-│  │  - Source: mcp_local/Dockerfile │
+│  │  - Source: mcp/Dockerfile │
 │  └──────────────────────────────┘  │
 └─────────────────────────────────────┘
 ```
@@ -376,10 +376,10 @@ gcloud logging read "resource.type=cloud_run_revision AND resource.labels.servic
 cd api && uvicorn app:app --reload
 
 # MCP服务 (stdio)
-python mcp_local/mcp_server.py
+python mcp/mcp_server.py
 
 # MCP服务 (HTTP)
-PORT=8080 python mcp_local/mcp_server.py
+PORT=8080 python mcp/mcp_server.py
 ```
 
 ---
@@ -469,7 +469,7 @@ PORT=8080 python mcp_local/mcp_server.py
 
 - [主README](../README.md) - 项目概述和快速开始
 - [API服务文档](../api/README.md) - API详细说明
-- [MCP服务文档](../mcp_local/README.md) - MCP详细说明
+- [MCP服务文档](../mcp/README.md) - MCP详细说明
 - [部署指南](DEPLOYMENT.md) - 云部署完整指南
 - [MCP设计](MCP_DESIGN.md) - MCP架构详细设计
 - [API端点](API_ENDPOINTS.md) - 完整端点列表
