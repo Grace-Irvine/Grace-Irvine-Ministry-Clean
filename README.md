@@ -1,696 +1,652 @@
-# 教会主日事工数据管理系统 (v3.4)
+# Grace Irvine Ministry Data Management System
 
-一个完整的教会主日事工数据管理系统，支持数据清洗、服务层转换、RESTful API 访问，以及 **AI 助手集成（MCP 协议）**。
+> **Language / 语言**: [English](README.md) | [中文](README_CH.md)
 
-## ✨ 最新更新 (v3.4)
+[![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.118+-green.svg)](https://fastapi.tiangolo.com/)
+[![MCP](https://img.shields.io/badge/MCP-1.16+-purple.svg)](https://modelcontextprotocol.io/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**🔄 MCP服务器统一实现** (2025-10-10)
-
-- ✅ **单一文件实现**：stdio 和 HTTP/SSE 模式统一在 `mcp/mcp_server.py` 中
-- ✅ **自动模式切换**：根据环境变量（PORT）自动选择运行模式
-- ✅ **完全兼容**：支持 Claude Desktop（stdio）和 ChatGPT/OpenAI（HTTP/SSE）
-- ✅ **简化部署**：单一Docker镜像，统一配置
-
-👉 **查看 [MCP本地文档](mcp/README.md)** | **[更新日志](CHANGELOG.md)**
-
-## 🎉 核心特性
-
-### 🤖 AI 助手集成（MCP协议）
-- **自然语言查询**：用对话方式查询和分析数据
-- **多客户端支持**：Claude Desktop（本地）+ ChatGPT/OpenAI（云端）
-- **9个工具**：数据清洗、查询、分析、生成服务层
-- **22个资源**：证道数据、同工数据、统计信息
-- **12个提示词**：预定义分析模板
-
-### 📊 数据管理
-- **智能清洗**：日期标准化、文本清理、别名映射、数据校验
-- **服务层**：转换为sermon和volunteer领域模型
-- **云存储**：自动上传到Google Cloud Storage
-- **变化检测**：SHA-256哈希，仅在数据变化时执行
-
-### ☁️ 云端部署
-- **RESTful API**：完整的数据查询和管理接口
-- **Cloud Run**：自动扩展，按需付费
-- **定时任务**：Cloud Scheduler自动更新数据
-
-## 🏗️ 架构概览
-
-本系统采用**单一仓库（Monorepo）**架构，通过清晰的目录结构实现了**API服务**和**MCP服务**的职责分离：
-
-```
-├── api/          # API服务 - 数据清洗和管理（FastAPI）
-├── mcp/          # MCP服务 - AI助手集成（MCP协议）
-├── core/         # 共享核心业务逻辑（80%+代码重用）
-└── deploy/       # 独立部署脚本
-```
-
-**两个独立服务**:
-- 🔵 **API Service** (`ministry-data-api`) - 数据清洗、REST API、统计分析
-- 🟢 **MCP Service** (`ministry-data-mcp`) - AI助手集成、MCP协议、自然语言查询
-
-**独立部署** → 各自的Dockerfile → 独立Cloud Run服务 → 共享core/逻辑
-
-👉 **详细架构说明**: [ARCHITECTURE.md](ARCHITECTURE.md)
+A complete church ministry data management system featuring intelligent data cleaning, domain model transformation, RESTful API, and **AI Assistant Integration via Model Context Protocol (MCP)**.
 
 ---
 
-## 📚 文档导航
+## Table of Contents
 
-### 快速开始
-- 📖 [5分钟快速上手](docs/QUICKSTART.md) - 新用户必读
-- 🏗️ [系统架构](docs/ARCHITECTURE.md) - 架构设计文档
-- 📝 [更新日志](CHANGELOG.md) - 版本历史
+- [✨ Overview](#-overview)
+- [🏗️ Architecture](#️-architecture)
+- [🚀 Quick Start](#-quick-start)
+- [📚 Documentation](#-documentation)
+- [🔑 Key Features](#-key-features)
+- [🛠️ Technology Stack](#️-technology-stack)
+- [📦 Project Structure](#-project-structure)
+- [💡 Usage Examples](#-usage-examples)
+- [🧪 Testing](#-testing)
+- [🤝 Contributing](#-contributing)
 
-### AI 助手集成（MCP）
-- 🤖 [MCP服务器文档](mcp/README.md) - 完整使用指南
-- 🔍 [MCP Inspector使用指南](docs/MCP_INSPECTOR.md) - Inspector调试工具
-- 🎯 [同工分析提示词](VOLUNTEER_ANALYSIS_PROMPTS.md) - AI分析示例
-- 🏗️ [MCP架构设计](docs/MCP_DESIGN.md) - 详细设计方案
-- ☁️ [MCP云端部署](docs/MCP_DEPLOYMENT.md) - Cloud Run部署
+---
 
-### API服务
-- 🔵 [API服务文档](api/README.md) - REST API说明
-- 📚 [API端点文档](docs/API_ENDPOINTS.md) - 完整端点列表
-- 📦 [服务层架构](docs/SERVICE_LAYER.md) - 领域模型设计
+## ✨ Overview
 
-### 数据管理
-- 🔄 [自动别名同步](docs/AUTO_ALIAS_SYNC.md) - 自动识别和管理同工名字
-- 📋 [Schema管理](docs/SCHEMA_MANAGEMENT.md) - 动态列映射和部门管理
+The **Grace Irvine Ministry Data Management System** is a production-ready, AI-native application designed to:
 
-### 部署和运维
-- ☁️ [云端部署指南](docs/DEPLOYMENT.md) - Cloud Run + Scheduler
-- 💾 [存储管理](docs/STORAGE.md) - Cloud Storage配置
-- 🚀 [常用命令](docs/QUICK_COMMANDS.md) - 命令速查
-- 🔧 [故障排除](docs/TROUBLESHOOTING.md) - 问题解决
+1. **Clean and standardize** raw ministry data from Google Sheets
+2. **Transform** flat data into structured domain models (Sermon + Volunteer domains)
+3. **Serve** data via RESTful API endpoints for analytics and applications
+4. **Enable AI integration** through the Model Context Protocol (MCP)
+5. **Deploy seamlessly** to Google Cloud Run with automated scheduling
 
-## 📋 目录
+### What Makes This Special?
 
-- [特性](#特性)
-- [快速开始](#快速开始)
-- [本地调试](#本地调试)（🔥 新增）
-- [配置说明](#配置说明)
-- [使用方式](#使用方式)
-- [数据清洗规则](#数据清洗规则)
-- [输出 Schema](#输出-schema)
-- [测试](#测试)
-- [故障排除](#故障排除)
+- **🤖 AI-Native Design**: Built-in MCP server for natural language queries with Claude, ChatGPT, and other AI assistants
+- **🏗️ Clean Architecture**: 2-layer design (cleaning + service layer) with 80%+ code reuse
+- **☁️ Cloud-Ready**: Containerized microservices, auto-scaling, minimal cost (~$1/month)
+- **⚡ Smart Optimization**: Change detection, parallel processing, incremental updates
+- **📦 Packable**: One-click installation to Claude Desktop via MCPB package
 
-## ✨ 特性
+---
 
-### 🤖 MCP 集成（v3.0 新增）
-- **🔌 AI 助手集成**：通过 MCP 协议支持 Claude Desktop、ChatGPT 等 AI 助手
-- **💬 自然语言交互**：用对话方式查询和分析数据，无需编写代码
-- **🛠️ 5 个 Tools**：执行数据清洗、生成服务层、验证数据、管理别名
-- **📦 10 个 Resources**：提供证道、同工、统计数据的结构化访问
-- **💡 5 个 Prompts**：预定义分析模板，引导 AI 进行常见分析任务
-- **🔀 双传输模式**：stdio（本地）+ HTTP/SSE（远程）
-- **📦 MCPB 打包**：一键安装到 Claude Desktop
+## 🏗️ Architecture
 
-### 核心清洗功能
-- **可配置的清洗规则**：通过 JSON 配置文件管理所有清洗规则
-- **人名别名映射**：支持将多个别名（中文名、英文名、昵称）映射到统一的人员 ID
-- **多种日期格式支持**：自动识别并标准化多种日期格式
-- **智能文本清理**：去除空白、处理占位符、标准化空格
-- **歌曲拆分与去重**：支持多种分隔符，自动去重
-- **数据校验**：生成详细的错误和警告报告
-- **Dry-run 模式**：可先预览清洗结果，不写回 Google Sheet
+### Monorepo with Independent Microservices
 
-### 服务层（v2.0）
-- **📦 领域模型**：Sermon Domain（证道域）+ Volunteer Domain（同工域）
-- **🔄 多年份支持**：自动生成所有历史年份数据（2024-2026）
-- **💾 Cloud Storage**：自动上传到 Google Cloud Storage
-- **📁 智能组织**：按领域和年份组织文件（latest + yearly）
+```
+Grace-Irvine-Ministry-Clean/
+├── api/          # API Service - Data cleaning & REST API (FastAPI)
+├── mcp/          # MCP Service - AI assistant integration (MCP Protocol)
+├── core/         # Shared business logic (80%+ code reuse)
+├── deploy/       # Deployment scripts
+└── config/       # Configuration files
+```
 
-### 云端部署（v2.0）
-- **☁️ Cloud Run 部署**：一键部署到 Google Cloud Run
-- **⏰ 智能定时任务**：每30分钟自动检测并更新（仅在数据变化时执行）
-- **🔍 变化检测**：SHA-256哈希比对，无变化时< 1秒返回
-- **🚀 RESTful API**：完整的数据查询和管理接口
-- **🔒 安全认证**：Bearer Token 保护敏感端点
-- **📊 实时统计**：动态数据统计和分析
+### Two Independent Services
 
-### 技术亮点
-- **详细日志**：记录所有操作和问题
-- **💰 成本友好**：基本在 Google Cloud 免费额度内（~$1.00/月）
-- **⚡ 高性能**：智能跳过、并行处理、增量更新
-- **🤖 AI 原生**：为 AI 集成设计的 MCP 协议支持
+| Service               | Purpose                                            | Tech Stack        | Port | Deployment |
+| --------------------- | -------------------------------------------------- | ----------------- | ---- | ---------- |
+| **API Service** | Data cleaning, REST API, statistics                | FastAPI + Uvicorn | 8080 | Cloud Run  |
+| **MCP Service** | AI assistant integration, natural language queries | MCP SDK + FastAPI | 8080 | Cloud Run  |
 
-## 🚀 快速开始
+Both services can run **independently** while sharing the `core/` business logic.
 
-### 方式 1：AI 助手集成（推荐）🤖
+### 2-Layer Clean Architecture
 
-通过 MCP 协议与 Claude Desktop 或 ChatGPT 集成：
+#### Layer 1: Cleaning Layer
+
+**Purpose**: Standardize raw data from Google Sheets
+
+**File**: [core/clean_pipeline.py](core/clean_pipeline.py)
+
+**Transformations**:
+
+- Date normalization (multiple formats → YYYY-MM-DD)
+- Text cleaning (strip spaces, handle placeholders)
+- Alias mapping (multiple names → unified person_id)
+- Song splitting (multiple delimiters)
+- Scripture formatting (add space between book and chapter)
+- Column merging (worship_team_1 + worship_team_2 → worship_team list)
+- Data validation (required fields, duplicates, format checks)
+
+**Output**: 29-field standardized schema written to Google Sheets "CleanData" tab
+
+#### Layer 2: Service Layer
+
+**Purpose**: Transform flat cleaned data into structured domain models
+
+**File**: [core/service_layer.py](core/service_layer.py)
+
+**Domains**:
+
+1. **Sermon Domain** - Sermon metadata with preacher and songs
+
+   ```json
+   {
+     "service_date": "2024-01-07",
+     "sermon": {
+       "title": "Gospel Series Part 1",
+       "series": "Encountering Jesus",
+       "scripture": "Genesis 3"
+     },
+     "preacher": {"id": "person_6511_wangtong", "name": "Wang Tong"},
+     "songs": ["Amazing Grace", "Assurance"]
+   }
+   ```
+2. **Volunteer Domain** - Volunteer assignments by role
+
+   ```json
+   {
+     "service_date": "2024-01-07",
+     "worship": {
+       "lead": {"id": "person_xiem", "name": "Xie Miao"},
+       "team": [{"id": "person_quixiaohuan", "name": "Qu Xiaohuan"}],
+       "pianist": {"id": "person_shawn", "name": "Shawn"}
+     },
+     "technical": {
+       "audio": {"id": "person_3850_jingzheng", "name": "Jing Zheng"},
+       "video": {"id": "person_2012_junxin", "name": "Jun Xin"}
+     }
+   }
+   ```
+
+**Output**: JSON files organized by domain and year, optionally uploaded to Google Cloud Storage
+
+### Complete Data Flow
+
+```
+Raw Data (Google Sheets)
+    ↓
+Cleaning Pipeline
+    ├── Date normalization
+    ├── Text cleanup
+    ├── Alias mapping
+    ├── Song splitting
+    └── Validation
+    ↓
+Cleaned Data (Google Sheets + Local JSON/CSV)
+    ↓
+Service Layer Transformer
+    ├── Sermon Domain Model
+    └── Volunteer Domain Model
+    ↓
+Domain Storage
+    ├── Local: logs/service_layer/{domain}_latest.json
+    ├── Yearly: logs/service_layer/{year}/{domain}_{year}.json
+    └── Cloud: gs://bucket/domains/{domain}/{files}
+    ↓
+Access Layer
+    ├── REST API (api/app.py)
+    ├── MCP Resources (mcp/mcp_server.py)
+    └── AI Assistants (Claude, ChatGPT)
+```
+
+---
+
+## 🚀 Quick Start
+
+### Option 1: AI Assistant Integration (Recommended) 🤖
+
+Integrate with Claude Desktop or ChatGPT using the MCP protocol:
+
+**For Claude Desktop (stdio mode)**:
 
 ```bash
-# Claude Desktop 本地模式
+# Run MCP server locally
 python mcp/mcp_server.py
+```
 
-# 或部署到Cloud Run（HTTP模式）
+**For Cloud Deployment (HTTP/SSE mode)**:
+
+```bash
+# Deploy to Cloud Run
 ./deploy/deploy-mcp.sh
 ```
 
-**特点**：自然语言查询、多客户端支持、预定义分析模板
+**Features**:
 
-👉 **详细说明**: [MCP服务器文档](mcp/README.md)
+- Natural language queries
+- Pre-defined analysis prompts
+- 9 tools for data operations
+- 22+ resources for data access
+
+👉 **See**: [MCP Server Documentation](mcp/README.md) | [MCP Architecture](docs/MCP_DESIGN.md)
 
 ---
 
-### 方式 2：本地数据清洗
+### Option 2: Local Data Cleaning
 
 ```bash
-# 1. 安装依赖
+# 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. 配置服务账号
+# 2. Configure service account
 export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
 
-# 3. 编辑配置文件
+# 3. Edit configuration
 vim config/config.json
 
-# 4. 干跑模式测试
+# 4. Test with dry-run mode
 python core/clean_pipeline.py --config config/config.json --dry-run
 
-# 5. 正式运行
+# 5. Run cleaning pipeline
 python core/clean_pipeline.py --config config/config.json
 ```
 
-👉 **详细说明**: [快速上手指南](docs/QUICKSTART.md)
+👉 **See**: [Quick Start Guide](docs/QUICKSTART.md)
 
 ---
 
-### 方式 3：云端部署
+### Option 3: Cloud Deployment
 
-部署 API 服务和 MCP 服务到 Google Cloud Run：
+Deploy API and MCP services to Google Cloud Run:
 
 ```bash
-# 设置项目ID
+# Set GCP project ID
 export GCP_PROJECT_ID=your-project-id
 
-# 部署所有服务
+# Deploy all services
 ./deploy/deploy-all.sh
 ```
 
-**特点**：自动扩展、定时任务、低成本（~$1/月）
+**Features**:
 
-👉 **详细说明**: [云端部署指南](docs/DEPLOYMENT.md)
+- Auto-scaling based on traffic
+- Scheduled updates (every 30 minutes)
+- Low cost (~$1/month in free tier)
+- Bearer token authentication
 
-## 🔧 本地调试
-
-### 为什么需要本地调试？
-
-在配置 Google Sheets 之前，建议先用本地 Excel 文件调试：
-- ✅ **无需配置服务账号**：直接使用本地文件
-- ✅ **快速迭代**：修改-测试-修改，循环更快
-- ✅ **生成别名表**：自动提取所有人名
-- ✅ **验证清洗逻辑**：确保规则正确
-
-### 快速开始（3 步）
-
-#### 1. 提取人名，生成别名表
-
-```bash
-python3 scripts/extract_aliases_smart.py \
-    --excel "tests/你的Excel文件.xlsx" \
-    -o tests/generated_aliases.csv
-```
-
-**输出**：`tests/generated_aliases.csv` - 包含所有提取的人名
-
-#### 2. 编辑别名表
-
-打开 `tests/generated_aliases.csv`，合并同一人的不同写法：
-
-```csv
-# 示例：合并"华亚西"和"亚西"
-alias,person_id,display_name,count,note
-华亚西,person_huayaxi,华亚西,18,
-亚西,person_huayaxi,华亚西,13,    ← 改为相同的 person_id
-```
-
-#### 3. 本地测试清洗
-
-```bash
-python3 scripts/debug_clean_local.py \
-    --excel "tests/你的Excel文件.xlsx" \
-    --aliases tests/generated_aliases.csv \
-    -o tests/debug_output.csv
-```
-
-**输出**：
-- `tests/debug_output.csv` - 清洗后的数据
-- `tests/debug_output.json` - JSON 格式
-- 控制台显示校验报告
-
-### 详细文档
-
-- 📖 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - 故障排除指南
+👉 **See**: [Cloud Deployment Guide](docs/DEPLOYMENT.md)
 
 ---
 
-## ⚙️ 配置说明
+## 📚 Documentation
 
-### 配置文件结构
+### Core Documentation
 
-`config/config.json` 包含以下部分：
+- [📖 Architecture Overview](docs/ARCHITECTURE.md) - System design and components
+- [📝 API Endpoints](docs/API_ENDPOINTS.md) - Complete REST API reference
+- [📦 Service Layer Design](docs/SERVICE_LAYER.md) - Domain model transformation
+- [📋 Schema Management](docs/SCHEMA_MANAGEMENT.md) - Dynamic column mapping
 
-#### 1. source_sheet（原始表）
-```json
-{
-  "url": "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit",
-  "range": "RawData!A1:Z"
-}
-```
+### AI Integration (MCP)
 
-#### 2. target_sheet（清洗层）
-```json
-{
-  "url": "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit",
-  "range": "CleanData!A1"
-}
-```
+- [🤖 MCP Server Guide](mcp/README.md) - Complete MCP usage guide
+- [🏗️ MCP Design Document](docs/MCP_DESIGN.md) - Detailed architecture
+- [☁️ MCP Cloud Deployment](docs/MCP_DEPLOYMENT.md) - Cloud Run setup
+- [🔍 MCP Inspector Guide](docs/MCP_INSPECTOR.md) - Debugging tool
 
-#### 3. columns（列名映射）
-将原始表的中文列名映射到标准英文列名：
-```json
-{
-  "service_date": "主日日期",
-  "sermon_title": "讲道标题",
-  "preacher": "讲员",
-  ...
-}
-```
+### Deployment & Operations
 
-#### 4. cleaning_rules（清洗规则）
-```json
-{
-  "date_format": "YYYY-MM-DD",
-  "strip_spaces": true,
-  "split_songs_delimiters": ["、", ",", "/", "|"],
-  "merge_columns": {
-    "worship_team": ["worship_team_1", "worship_team_2"]
-  }
-}
-```
+- [☁️ Cloud Deployment](docs/DEPLOYMENT.md) - Cloud Run + Scheduler setup
+- [💾 Storage Management](docs/STORAGE.md) - Google Cloud Storage configuration
+- [🔧 Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
 
-#### 5. alias_sources（别名数据源）
-```json
-{
-  "people_alias_sheet": {
-    "url": "https://docs.google.com/spreadsheets/d/YOUR_ALIAS_SHEET_ID/edit",
-    "range": "PeopleAliases!A1:C"
-  }
-}
-```
+---
 
-别名表格式（3列）：
-| alias | person_id | display_name |
-|-------|-----------|--------------|
-| 张牧师 | preacher_zhang | 张牧师 |
-| Pastor Zhang | preacher_zhang | 张牧师 |
-| 王丽 | person_wangli | 王丽 |
+## 🔑 Key Features
 
-## 📖 使用方式
+### 🤖 AI Assistant Integration (MCP Protocol)
 
-### 基本用法
+**9 Tools** (Action-oriented operations):
 
-#### 方式 1：使用便捷脚本（推荐）
+- `query_volunteers_by_date` - Query volunteer assignments
+- `query_sermon_by_date` - Query sermon information
+- `query_date_range` - Query across date ranges
+- `clean_ministry_data` - Trigger cleaning pipeline
+- `generate_service_layer` - Generate domain models
+- `validate_raw_data` - Validate data quality
+- `sync_from_gcs` - Sync from cloud storage
+- `check_upcoming_completeness` - Check future scheduling
+- `generate_weekly_preview` - Generate weekly preview
 
-```bash
-# 运行测试
-./run_pipeline.sh --test
+**22+ Resources** (Read-only data access):
 
-# 干跑模式
-./run_pipeline.sh --dry-run
+- `ministry://sermon/records/{year}` - Sermon records
+- `ministry://sermon/by-preacher/{name}` - Sermons by preacher
+- `ministry://volunteer/assignments/{date}` - Volunteer assignments
+- `ministry://volunteer/by-person/{id}` - Service history
+- `ministry://stats/summary` - Overall statistics
 
-# 正式运行
-./run_pipeline.sh
+**12+ Prompts** (Pre-defined analysis templates):
 
-# 使用自定义配置
-./run_pipeline.sh --config path/to/config.json --dry-run
-```
+- `analyze_preaching_schedule` - Analyze sermon patterns
+- `analyze_volunteer_balance` - Check service load balance
+- `find_scheduling_gaps` - Find unfilled positions
+- `suggest_preacher_rotation` - Suggest preacher schedule
+- `check_data_quality` - Data quality assessment
 
-#### 方式 2：直接使用 Python
+**Dual Transport Modes**:
 
-```bash
-# 使用默认配置
-python scripts/clean_pipeline.py
+- **stdio**: For Claude Desktop local integration (no network overhead)
+- **HTTP/SSE**: For cloud integration with remote clients
 
-# 指定配置文件
-python scripts/clean_pipeline.py --config path/to/config.json
+---
 
-# 干跑模式
-python scripts/clean_pipeline.py --dry-run
-```
+### 📊 Data Management
 
-### 输出文件
+**Intelligent Cleaning**:
 
-运行后会生成以下文件：
+- Date normalization (multiple formats → YYYY-MM-DD)
+- Text cleaning (spaces, placeholders, standardization)
+- Alias mapping (multiple names → unified person_id)
+- Song splitting and deduplication
+- Scripture formatting
+- Column merging
+- Comprehensive validation
 
-- `logs/clean_preview.csv` - 清洗后数据的 CSV 预览
-- `logs/clean_preview.json` - 清洗后数据的 JSON 预览
-- `logs/validation_report_YYYYMMDD_HHMMSS.txt` - 详细校验报告
+**Service Layer Transformation**:
 
-## 🧹 数据清洗规则
+- Sermon domain model (sermons, preachers, songs)
+- Volunteer domain model (roles, assignments, availability)
+- Yearly partitioning (2024-2026+)
+- Cloud Storage backup (Google Cloud Storage)
 
-### 1. 日期标准化
-- **输入格式**：`2025/10/05`, `2025年10月5日`, `10/05/2025`
-- **输出格式**：`2025-10-05`
+**Change Detection**:
 
-### 2. 文本清理
-- 去除首尾空格（包括全角空格 `　`）
-- 多个空格合并为一个
-- 占位符处理：`-`, `N/A`, `无`, `—` → 空字符串
+- SHA-256 hash comparison
+- Skip processing if no changes detected
+- 99%+ faster on repeated runs
+- Reduces API calls and costs
 
-### 3. 人名别名映射
-- 将多个别名映射到统一的 `person_id` 和显示名
-- 不区分大小写
-- 忽略空白字符
+---
 
-### 4. 歌曲拆分
-- 支持多种分隔符：`、`, `,`, `/`, `|`
-- 自动去重
-- 去除首尾空格
+### ☁️ Cloud Deployment
 
-### 5. 经文引用标准化
-- 在书名和章节之间添加空格
-- 示例：`以弗所书4:1-6` → `以弗所书 4:1-6`
+**API Service**:
 
-### 6. 列合并
-- 将多列合并为列表（如 `worship_team_1` + `worship_team_2`）
-- 自动过滤空值
-- 去重
+- Complete REST API for data access
+- Data cleaning endpoints
+- Statistics and analytics
+- Bearer token authentication
+- Auto-scaling (1GB memory, max 3 instances)
 
-## 📊 输出 Schema
+**MCP Service**:
 
-清洗后的数据包含以下字段（固定顺序）：
+- HTTP/SSE endpoint for MCP protocol
+- Remote AI assistant integration
+- Bearer token authentication
+- Auto-scaling (512MB memory, max 10 instances)
 
-```
-service_date          主日日期 (YYYY-MM-DD)
-service_week          服务周数 (1-53)
-service_slot          服务时段 (morning/noon/evening)
-sermon_title          讲道标题
-series                讲道系列
-scripture             经文
-preacher_id           讲员 ID
-preacher_name         讲员姓名
-catechism             要理问答
-reading               读经
-worship_lead_id       敬拜带领 ID
-worship_lead_name     敬拜带领姓名
-worship_team_ids      敬拜同工 ID 列表 (JSON)
-worship_team_names    敬拜同工姓名列表 (JSON)
-pianist_id            司琴 ID
-pianist_name          司琴姓名
-songs                 诗歌列表 (JSON)
-audio_id              音控 ID
-audio_name            音控姓名
-video_id              导播/摄影 ID
-video_name            导播/摄影姓名
-propresenter_play_id  ProPresenter播放 ID
-propresenter_play_name ProPresenter播放姓名
-propresenter_update_id ProPresenter更新 ID
-propresenter_update_name ProPresenter更新姓名
-assistant_id          助教 ID
-assistant_name        助教姓名
-notes                 备注
-source_row            原始表行号
-updated_at            更新时间 (ISO 8601)
-```
+**Scheduling**:
 
-## 🧪 测试
+- Cloud Scheduler triggers every 30 minutes
+- Change detection prevents unnecessary runs
+- Automated data updates
 
-### 运行单元测试
+**Cost Optimization**:
 
-```bash
-# 运行所有测试
-pytest tests/test_cleaning.py -v
+- Within Google Cloud free tier (~$1/month)
+- Pay-per-use pricing
+- Smart caching and optimization
 
-# 运行特定测试类
-pytest tests/test_cleaning.py::TestCleaningRules -v
+---
 
-# 运行特定测试方法
-pytest tests/test_cleaning.py::TestCleaningRules::test_clean_date_formats -v
-```
+## 🛠️ Technology Stack
 
-### 测试覆盖
+### Backend Framework
 
-单元测试涵盖：
-- ✅ 日期格式清洗和标准化
-- ✅ 文本清理（空格、占位符）
-- ✅ 经文引用标准化
-- ✅ 歌曲拆分与去重
-- ✅ 列合并
-- ✅ 人名别名映射
-- ✅ 数据校验（必填字段、日期有效性、重复检测）
+| Component                 | Technology    | Version | Purpose                |
+| ------------------------- | ------------- | ------- | ---------------------- |
+| **API Framework**   | FastAPI       | 0.118+  | Async HTTP endpoints   |
+| **ASGI Server**     | Uvicorn       | 0.37+   | Production server      |
+| **MCP SDK**         | mcp (Python)  | 1.16+   | Model Context Protocol |
+| **SSE Transport**   | sse-starlette | 2.0+    | Server-Sent Events     |
+| **Data Processing** | Pandas        | 2.2+    | DataFrame operations   |
+| **Type Validation** | Pydantic      | 2.12+   | Data models            |
 
-### 样例数据
+### Google Cloud Integration
 
-`tests/sample_raw.csv` 包含多种测试场景：
-- 不同日期格式
-- 带空格的文本
-- 多种歌曲分隔符
-- 人名别名
-- 空值和占位符
-- 无效日期（用于测试错误处理）
+| Component                   | Technology                      | Purpose                  |
+| --------------------------- | ------------------------------- | ------------------------ |
+| **Google Sheets API** | google-api-python-client 2.149+ | Read/write data          |
+| **Cloud Storage**     | google-cloud-storage 2.10+      | File storage             |
+| **Authentication**    | google-auth 2.34+               | OAuth2, service accounts |
 
-## 📝 样例：从原始到清洗
+### Infrastructure & Deployment
 
-### 原始数据（一行）
+| Component                  | Technology       | Purpose            |
+| -------------------------- | ---------------- | ------------------ |
+| **Containerization** | Docker           | Container images   |
+| **Cloud Hosting**    | Google Cloud Run | Serverless compute |
+| **Scheduling**       | Cloud Scheduler  | Periodic updates   |
+| **Secrets**          | Secret Manager   | Token storage      |
+| **Logging**          | Cloud Logging    | Centralized logs   |
 
-```
-主日日期: 2025/10/05
-讲道标题: 主里合一
-经文: 以弗所书 4:1-6
-讲员: 张牧师
-讲道系列: 以弗所书系列
-要理问答: 第37问
-读经: 诗篇133
-敬拜带领: 王丽
-敬拜同工1: 陈明
-敬拜同工2: 林芳
-司琴: 李伟
-詩歌: 奇异恩典 / 我心灵得安宁
-音控: 赵强
-导播/摄影: 周晨
-ProPresenter播放: 黄立
-ProPresenter更新: 李慧
-助教: 刘丹
-```
+---
 
-### 清洗后数据（JSON 格式）
-
-```json
-{
-  "service_date": "2025-10-05",
-  "service_week": 41,
-  "service_slot": "morning",
-  "sermon_title": "主里合一",
-  "series": "以弗所书系列",
-  "scripture": "以弗所书 4:1-6",
-  "preacher_id": "preacher_zhang",
-  "preacher_name": "张牧师",
-  "catechism": "第37问",
-  "reading": "诗篇 133",
-  "worship_lead_id": "person_wangli",
-  "worship_lead_name": "王丽",
-  "worship_team_ids": "[\"person_chenming\",\"person_linfang\"]",
-  "worship_team_names": "[\"陈明\",\"林芳\"]",
-  "pianist_id": "person_liwei",
-  "pianist_name": "李伟",
-  "songs": "[\"奇异恩典\",\"我心灵得安宁\"]",
-  "audio_id": "person_zhaoqiang",
-  "audio_name": "赵强",
-  "video_id": "person_zhouchen",
-  "video_name": "周晨",
-  "propresenter_play_id": "person_huangli",
-  "propresenter_play_name": "黄立",
-  "propresenter_update_id": "person_lihui",
-  "propresenter_update_name": "李慧",
-  "assistant_id": "person_liudan",
-  "assistant_name": "刘丹",
-  "notes": "",
-  "source_row": 2,
-  "updated_at": "2025-10-06T10:00:00Z"
-}
-```
-
-## 🔒 安全与权限
-
-### 最小权限原则
-
-- ✅ 原始表：只读（Viewer）权限
-- ✅ 清洗表：只写对应范围
-- ✅ 别名表：只读（Viewer）权限
-
-### 敏感信息保护
-
-- ❌ **不要**将服务账号 JSON 文件提交到代码仓库
-- ✅ 使用 `.gitignore` 排除 `*.json`（除了 `config/config.json`）
-- ✅ 使用环境变量 `GOOGLE_APPLICATION_CREDENTIALS`
-- ❌ 日志中不打印敏感令牌
-
-## 🔧 故障排除
-
-### 问题：无法读取 Google Sheet
-
-**错误**：`HttpError 403: Permission denied`
-
-**解决**：
-1. 确认服务账号有权限访问对应的 Sheet
-2. 在 Sheet 中添加服务账号邮箱（如 `xxx@xxx.iam.gserviceaccount.com`）为协作者
-3. 检查 `GOOGLE_APPLICATION_CREDENTIALS` 环境变量是否正确设置
-
-### 问题：日期格式无法识别
-
-**解决**：
-- 检查原始数据的日期格式
-- 如有特殊格式，可在 `cleaning_rules.py` 的 `clean_date()` 方法中添加正则表达式
-
-### 问题：别名映射不生效
-
-**解决**：
-1. 确认别名表的列名为：`alias`, `person_id`, `display_name`
-2. 检查别名表中是否有相应的映射记录
-3. 注意别名匹配不区分大小写且忽略空白
-
-### 问题：清洗后有大量错误行
-
-**解决**：
-1. 查看 `logs/validation_report_*.txt` 了解具体错误
-2. 检查原始数据是否符合预期格式
-3. 根据错误信息调整 `config.json` 中的配置
-
-## 📂 项目结构
+## 📦 Project Structure
 
 ```
 Grace-Irvine-Ministry-Clean/
 │
-├── api/                         # 🔵 API服务（数据清洗和管理）
-│   ├── app.py                   # FastAPI应用主文件
-│   ├── Dockerfile               # API服务专用Dockerfile
-│   ├── __init__.py              # Python包标识
-│   └── README.md                # API服务文档
+├── api/                         # 🔵 API Service (Data cleaning & REST API)
+│   ├── app.py                   # FastAPI application
+│   ├── Dockerfile               # API service container
+│   └── README.md                # API documentation
 │
-├── mcp/                         # 🟢 MCP服务（AI助手集成）
-│   ├── mcp_server.py            # stdio模式服务器
-│   ├── mcp_http_server.py       # HTTP/SSE模式服务器
-│   ├── Dockerfile               # MCP服务专用Dockerfile
-│   ├── __init__.py              # Python包标识
-│   └── README.md                # MCP服务文档
+├── mcp/                         # 🟢 MCP Service (AI assistant integration)
+│   ├── mcp_server.py            # Unified MCP server (stdio + HTTP)
+│   ├── sse_transport.py         # HTTP/SSE transport handler
+│   ├── Dockerfile               # MCP service container
+│   └── README.md                # MCP documentation
 │
-├── core/                        # 🔧 共享核心业务逻辑
-│   ├── __init__.py
-│   ├── clean_pipeline.py        # 主清洗管线
-│   ├── service_layer.py         # 服务层转换器
-│   ├── gsheet_utils.py          # Google Sheets 工具
-│   ├── cleaning_rules.py        # 清洗规则
-│   ├── validators.py            # 数据校验器
-│   ├── alias_utils.py           # 别名映射工具
-│   ├── cloud_storage_utils.py   # Cloud Storage 工具
-│   └── change_detector.py       # 变化检测
+├── core/                        # 🔧 Shared business logic (80%+ reuse)
+│   ├── clean_pipeline.py        # Main cleaning orchestration
+│   ├── service_layer.py         # Service layer transformer
+│   ├── cleaning_rules.py        # Cleaning rules
+│   ├── validators.py            # Data validators
+│   ├── alias_utils.py           # Alias mapping
+│   ├── gsheet_utils.py          # Google Sheets client
+│   ├── cloud_storage_utils.py   # Cloud Storage client
+│   ├── change_detector.py       # Change detection
+│   └── schema_manager.py        # Schema management
 │
-├── deploy/                      # 📦 部署脚本
-│   ├── deploy-api.sh            # API服务部署
-│   ├── deploy-mcp.sh            # MCP服务部署
-│   └── deploy-all.sh            # 统一部署脚本
+├── deploy/                      # 📦 Deployment scripts
+│   ├── deploy-api.sh            # Deploy API service
+│   ├── deploy-mcp.sh            # Deploy MCP service
+│   └── deploy-all.sh            # Deploy all services
 │
-├── config/                      # ⚙️ 配置文件
-│   ├── config.json              # 主配置文件
-│   ├── claude_desktop_config.example.json   # Claude Desktop 配置示例
-│   ├── env.example              # 环境变量示例
-│   └── service-account.json     # GCP服务账号
+├── config/                      # ⚙️ Configuration files
+│   ├── config.json              # Main configuration
+│   ├── claude_desktop_config.example.json   # Claude Desktop config
+│   ├── env.example              # Environment variables
+│   └── service-account.json     # GCP service account
 │
-├── docs/                        # 📚 文档
-│   ├── MCP_DESIGN.md            # MCP 架构设计
-│   ├── MCP_DEPLOYMENT.md        # MCP 部署指南
-│   ├── MCP_INTEGRATION.md       # MCP 集成指南
-│   ├── DEPLOYMENT.md            # 云部署指南
-│   ├── SERVICE_LAYER.md         # 服务层文档
-│   ├── STORAGE.md               # 存储文档
-│   └── ...
+├── docs/                        # 📚 Documentation
+│   ├── ARCHITECTURE.md          # System architecture
+│   ├── API_ENDPOINTS.md         # API reference
+│   ├── MCP_DESIGN.md            # MCP architecture
+│   ├── MCP_DEPLOYMENT.md        # MCP cloud deployment
+│   ├── SERVICE_LAYER.md         # Service layer design
+│   ├── DEPLOYMENT.md            # Cloud deployment
+│   └── TROUBLESHOOTING.md       # Common issues
 │
-├── examples/
-│   └── mcp_client_example.py    # MCP 客户端示例
+├── tests/                       # 🧪 Tests
+│   ├── test_cleaning.py         # Unit tests
+│   ├── sample_raw.csv           # Sample raw data
+│   └── sample_aliases.csv       # Sample aliases
 │
-├── tests/                       # 🧪 测试
-│   ├── sample_raw.csv           # 样例原始数据
-│   ├── sample_aliases.csv       # 样例别名数据
-│   └── test_cleaning.py         # 单元测试
+├── logs/                        # 📊 Logs and outputs
+│   ├── clean_preview.csv        # Cleaned data (CSV)
+│   ├── clean_preview.json       # Cleaned data (JSON)
+│   ├── service_layer/           # Service layer data
+│   └── validation_report_*.txt  # Validation reports
 │
-├── logs/                        # 📊 日志和输出
-│   ├── clean_preview.csv        # 清洗预览 (CSV)
-│   ├── clean_preview.json       # 清洗预览 (JSON)
-│   ├── service_layer/           # 服务层数据
-│   └── validation_report_*.txt  # 校验报告
-│
-├── ARCHITECTURE.md              # 🏗️ 系统架构设计（新！）
-├── CHANGELOG.md                 # 📝 版本历史
-├── README.md                    # 本文档
-├── QUICKSTART_MCP.md            # MCP 快速开始
-├── ministry-data.mcpb           # MCPB 打包文件
-├── requirements.txt             # Python 依赖
-└── .gitignore                   # Git 忽略文件
+├── CHANGELOG.md                 # Version history
+├── README.md                    # This file
+├── requirements.txt             # Python dependencies
+└── .gitignore                   # Git ignore rules
 ```
-
-**架构说明**：
-- 🔵 **api/** - 独立的API服务，拥有自己的Dockerfile
-- 🟢 **mcp/** - 独立的MCP服务，拥有自己的Dockerfile
-- 🔧 **core/** - 共享业务逻辑，被两个服务复用（80%+代码重用）
-- 📦 **deploy/** - 独立部署脚本，支持分别或统一部署
-
-## 🔧 技术亮点
-
-- ✅ **标准协议**：符合 MCP 规范，兼容 Claude Desktop 和 ChatGPT
-- ✅ **模块化设计**：Tools、Resources、Prompts 独立设计
-- ✅ **双传输模式**：支持 stdio（本地）和 HTTP/SSE（云端）
-- ✅ **智能清洗**：日期标准化、别名映射、数据校验
-- ✅ **云原生**：容器化部署，自动扩展
-- ✅ **成本友好**：Cloud Run 免费额度内（~$1/月）
-
-👉 **详细架构**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | [MCP设计](docs/MCP_DESIGN.md)
 
 ---
 
-## 📄 验收标准
+## 💡 Usage Examples
 
-运行完成后，控制台会打印摘要：
+### Example 1: AI Query via Claude Desktop
+
+**User**: "Show me next Sunday's service schedule"
+
+**Claude** (using MCP tools):
 
 ```
-============================================================
-数据校验报告
-============================================================
-总行数: 100
-成功行数: 95
-警告行数: 3
-错误行数: 2
-总问题数: 5
+Using query_volunteers_by_date tool with date=2025-10-26...
 
-错误 (2 条):
-  行 15 | service_date: 日期格式不正确，应为 YYYY-MM-DD
-    值: invalid-date
-  行 42 | service_date: 必填字段 'service_date' 不能为空
+Next Sunday (2025-10-26) Service Schedule:
 
-警告 (3 条):
-  行 20 | service_date: 重复的服务记录（日期: 2025-10-05, 时段: morning）
-  ...
-============================================================
+📖 Sermon: "The Power of Prayer" by Pastor Zhang
+   Series: Prayer Series | Scripture: Matthew 6:9-13
 
-✅ 读取原始表成功：100 行
-✅ 清洗成功行：95 行
-⚠️  警告行：3 行
-❌ 错误行：2 行
-✅ 目标表写入成功：95 行（若非 dry-run）
-✅ 生成日志文件：logs/validation_report_20251006_100000.txt
+🎵 Worship Team:
+   - Lead: Wang Li
+   - Team: Chen Ming, Lin Fang
+   - Pianist: Li Wei
+
+🎤 Technical Team:
+   - Audio: Zhao Qiang
+   - Video: Zhou Chen
 ```
 
-**退出码**：
-- `0`：成功（无错误）
-- `1`：有致命错误
+---
 
-## 🤝 贡献
+### Example 2: REST API Query
 
-欢迎提交 Issue 和 Pull Request！
+```bash
+# Get sermon records for 2024
+curl "https://your-api.run.app/api/v1/sermon?year=2024"
 
-## 📜 许可证
+# Get volunteer assignments for a specific date
+curl "https://your-api.run.app/api/v1/volunteer/by-person/person_wangli"
 
-本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
+# Trigger data cleaning (requires Bearer token)
+curl -X POST "https://your-api.run.app/api/v1/clean" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"dry_run": false}'
+```
+
+---
+
+### Example 3: Local Cleaning Pipeline
+
+```bash
+# Test with dry-run mode
+python core/clean_pipeline.py --config config/config.json --dry-run
+
+# Output:
+# ✅ Read source data: 100 rows
+# ✅ Cleaned successfully: 95 rows
+# ⚠️  Warnings: 3 rows
+# ❌ Errors: 2 rows
+# ✅ Generated logs/clean_preview.json
+
+# Run actual cleaning
+python core/clean_pipeline.py --config config/config.json
+```
+
+---
+
+## 🧪 Testing
+
+### Run Unit Tests
+
+```bash
+# Run all tests
+pytest tests/test_cleaning.py -v
+
+# Run specific test class
+pytest tests/test_cleaning.py::TestCleaningRules -v
+
+# Run specific test method
+pytest tests/test_cleaning.py::TestCleaningRules::test_clean_date_formats -v
+```
+
+### Test Coverage
+
+Unit tests cover:
+
+- ✅ Date format cleaning and normalization
+- ✅ Text cleaning (spaces, placeholders)
+- ✅ Scripture reference formatting
+- ✅ Song splitting and deduplication
+- ✅ Column merging
+- ✅ Alias mapping
+- ✅ Data validation (required fields, date validity, duplicate detection)
+
+### Sample Data
+
+`tests/sample_raw.csv` includes various test scenarios:
+
+- Different date formats
+- Text with spaces
+- Multiple song delimiters
+- Alias names
+- Null values and placeholders
+- Invalid dates (for error handling tests)
+
+---
+
+## 🔒 Security & Permissions
+
+### Minimum Privilege Principle
+
+- ✅ Source sheets: Read-only (Viewer) permission
+- ✅ Target sheets: Write-only to specific ranges
+- ✅ Alias sheets: Read-only (Viewer) permission
+
+### Sensitive Information Protection
+
+- ❌ **DO NOT** commit service account JSON files to repository
+- ✅ Use `.gitignore` to exclude `*.json` (except `config/config.json`)
+- ✅ Use environment variable `GOOGLE_APPLICATION_CREDENTIALS`
+- ✅ Store tokens in Secret Manager for production
+- ❌ Never print sensitive tokens in logs
+
+### Authentication
+
+**API Service**:
+
+- Bearer Token authentication for protected endpoints
+- Public access for health checks and documentation
+- Configurable via environment variable
+
+**MCP Service**:
+
+- Bearer Token authentication for HTTP/SSE mode (optional)
+- No authentication for stdio mode (local only)
+- CORS middleware enabled for remote clients
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how you can help:
+
+1. **Report Issues**: Found a bug? [Open an issue](https://github.com/yourusername/Grace-Irvine-Ministry-Clean/issues)
+2. **Suggest Features**: Have an idea? Share it in discussions
+3. **Submit PRs**: Fork, create a feature branch, and submit a pull request
+4. **Improve Docs**: Help us make documentation clearer
+
+### Development Setup
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/Grace-Irvine-Ministry-Clean.git
+cd Grace-Irvine-Ministry-Clean
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run tests
+pytest tests/ -v
+
+# Start API service locally
+cd api && uvicorn app:app --reload
+
+# Start MCP service locally
+cd mcp && python mcp_server.py
+```
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- **FastAPI** - Modern Python web framework
+- **MCP SDK** - Model Context Protocol implementation
+- **Google Cloud** - Cloud infrastructure
+- **Anthropic Claude** - AI assistant integration
+
+---
+
+## 📞 Support
+
+- **Documentation**: [docs/](docs/)
+- **Issues**: [GitHub Issues](https://github.com/yourusername/Grace-Irvine-Ministry-Clean/issues)
+- **Email**: jonathanjing@graceirvine.org
+
+---
+
+**Built with ❤️ for Grace Irvine Church Ministry**
