@@ -6,6 +6,7 @@ Cloud Storage 工具模块
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
@@ -246,7 +247,8 @@ class DomainStorageManager:
         domain_name: str,
         domain_data: Dict[str, Any],
         year: Optional[int] = None,
-        sync_latest: bool = True
+        sync_latest: bool = True,
+        force_latest: bool = False
     ) -> Dict[str, str]:
         """
         上传领域数据到 Cloud Storage
@@ -254,15 +256,24 @@ class DomainStorageManager:
         Args:
             domain_name: 领域名称（如 "sermon" 或 "volunteer"）
             domain_data: 领域数据字典
-            year: 年份（从数据中自动提取，或手动指定）
+            year: 年份（从数据中自动提取，或手动指定）。如果 force_latest=True，则忽略年份强制上传为 latest.json
             sync_latest: 是否同步更新 latest.json
+            force_latest: 是否强制上传为 latest.json（即使有年份信息）
             
         Returns:
             上传的文件路径字典
         """
         uploaded_files = {}
         
-        # 提取年份（如果未指定）
+        # 如果强制为 latest，直接上传 latest.json
+        if force_latest:
+            latest_path = f"{domain_name}/latest.json"
+            gs_path = self.gcs_client.upload_json(domain_data, latest_path)
+            uploaded_files['latest'] = gs_path
+            logger.info(f"已强制上传为 latest.json: {domain_name}")
+            return uploaded_files
+        
+        # 提取年份（如果未指定且未强制为 latest）
         if year is None:
             date_range = domain_data.get('metadata', {}).get('date_range', {})
             if date_range:
@@ -320,13 +331,33 @@ class DomainStorageManager:
             domain_name: 领域名称
         """
         try:
-            # 1. 获取所有年度文件
-            yearly_files = self.gcs_client.list_files(f"{domain_name}/")
-            yearly_files = [f for f in yearly_files if f.endswith('.json') and '/' in f]
+            # 1. 获取所有年度文件（排除 latest.json）
+            all_files = self.gcs_client.list_files(f"{domain_name}/")
+            
+            # 过滤年度文件：格式应该是 {domain}/{year}/{domain}_{year}.json
+            # 排除 latest.json（格式是 {domain}/latest.json）
+            yearly_pattern = re.compile(rf'{re.escape(domain_name)}/\d{{4}}/{re.escape(domain_name)}_\d{{4}}\.json$')
+            
+            # 移除 base_path 前缀进行匹配
+            base_path = self.gcs_client.base_path
+            yearly_files = []
+            for f in all_files:
+                # 移除 base_path 得到相对路径
+                relative_path = f.replace(base_path, '', 1) if f.startswith(base_path) else f
+                
+                # 排除 latest.json
+                if relative_path == f"{domain_name}/latest.json":
+                    continue
+                
+                # 匹配年度文件格式
+                if yearly_pattern.match(relative_path) or (relative_path.endswith('.json') and f'/{domain_name}_' in relative_path and len(relative_path.split('/')) == 3):
+                    yearly_files.append(f)
             
             if not yearly_files:
                 logger.warning(f"未找到 {domain_name} 的年度文件")
                 return
+            
+            logger.info(f"找到 {len(yearly_files)} 个年度文件用于合并")
             
             # 2. 合并所有年度数据
             all_records = []
@@ -338,13 +369,17 @@ class DomainStorageManager:
             for file_path in yearly_files:
                 try:
                     # 下载年度文件（file_path 已经包含完整路径，需要移除 base_path）
-                    relative_path = file_path.replace(self.gcs_client.base_path, '', 1)
+                    relative_path = file_path.replace(self.gcs_client.base_path, '', 1) if file_path.startswith(self.gcs_client.base_path) else file_path
                     year_data = self.gcs_client.download_json(relative_path)
 
                     # 合并记录 - 尝试多种可能的字段名
                     records = (year_data.get(record_field_name) or
                               year_data.get('records') or
                               year_data.get(domain_name + 's') or [])
+
+                    if not isinstance(records, list):
+                        logger.warning(f"文件 {file_path} 的记录字段不是列表: {type(records)}")
+                        records = []
 
                     all_records.extend(records)
 

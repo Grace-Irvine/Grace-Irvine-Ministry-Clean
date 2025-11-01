@@ -678,7 +678,8 @@ async def generate_service_layer(request: ServiceLayerRequest):
                             
                             # 根据是否为 latest 决定上传路径
                             if year == 'latest':
-                                uploaded = storage_manager.upload_domain_data(domain, domain_data)
+                                # 强制上传为 latest.json（避免自动提取年份）
+                                uploaded = storage_manager.upload_domain_data(domain, domain_data, force_latest=True)
                             else:
                                 # 上传年份文件
                                 yearly_path = f"{domain}/{year}/{domain}_{year}.json"

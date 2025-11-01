@@ -539,8 +539,8 @@ class CleaningPipeline:
                         
                         # 根据是否为 latest 决定上传路径
                         if year == 'latest':
-                            # 直接上传 latest 数据，不触发同步
-                            uploaded = storage_manager.upload_domain_data(domain, domain_data, sync_latest=False)
+                            # 直接上传 latest 数据，强制上传为 latest.json（避免自动提取年份）
+                            uploaded = storage_manager.upload_domain_data(domain, domain_data, sync_latest=False, force_latest=True)
                         else:
                             # 上传年份文件，不立即同步（避免重复同步）
                             uploaded = storage_manager.upload_domain_data(domain, domain_data, year=year, sync_latest=False)
