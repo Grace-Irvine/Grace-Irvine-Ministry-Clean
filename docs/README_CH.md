@@ -1,15 +1,11 @@
 # 恩典欧文教会主日事工数据管理系统
 
-> **Language / 语言**: [English](README.md) | [中文](docs/README_CH.md)
-
-> 📝 **注意**：中文文档已移至 [docs/README_CH.md](docs/README_CH.md)，请查看最新版本。
-
-本文件保留作为快速参考。完整的中文文档请访问：[docs/README_CH.md](docs/README_CH.md)
+> **Language / 语言**: [English](../README.md) | [中文](README_CH.md)
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.118+-green.svg)](https://fastapi.tiangolo.com/)
 [![MCP](https://img.shields.io/badge/MCP-1.16+-purple.svg)](https://modelcontextprotocol.io/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](../LICENSE)
 
 一个完整的教会主日事工数据管理系统，具备智能数据清洗、领域模型转换、RESTful API，以及**通过模型上下文协议（MCP）的 AI 助手集成**功能。
 
@@ -22,7 +18,7 @@
 - [🚀 快速开始](#-快速开始)
 - [📚 文档导航](#-文档导航)
 - [🔑 核心特性](#-核心特性)
-- [🛠️ 技术栈](#️-技术栈)
+- [🛠️ 技术栈](#-技术栈)
 - [📦 项目结构](#-项目结构)
 - [💡 使用示例](#-使用示例)
 - [🧪 测试](#-测试)
@@ -78,7 +74,7 @@ Grace-Irvine-Ministry-Clean/
 
 **目的**：标准化来自 Google Sheets 的原始数据
 
-**文件**：[core/clean_pipeline.py](core/clean_pipeline.py)
+**文件**：[core/clean_pipeline.py](../core/clean_pipeline.py)
 
 **转换操作**：
 
@@ -96,7 +92,7 @@ Grace-Irvine-Ministry-Clean/
 
 **目的**：将扁平的清洗数据转换为结构化领域模型
 
-**文件**：[core/service_layer.py](core/service_layer.py)
+**文件**：[core/service_layer.py](../core/service_layer.py)
 
 **领域模型**：
 
@@ -191,7 +187,7 @@ python mcp/mcp_server.py
 - 9 个工具用于数据操作
 - 22+ 资源用于数据访问
 
-👉 **详见**：[MCP 服务器文档](mcp/README.md) | [MCP 架构设计](docs/MCP_DESIGN.md)
+👉 **详见**：[MCP 服务器文档](../mcp/README.md) | [MCP 架构设计](MCP_DESIGN.md)
 
 ---
 
@@ -214,7 +210,7 @@ python core/clean_pipeline.py --config config/config.json --dry-run
 python core/clean_pipeline.py --config config/config.json
 ```
 
-👉 **详见**：[快速上手指南](docs/QUICKSTART.md)
+👉 **详见**：[快速上手指南](QUICKSTART.md)
 
 ---
 
@@ -237,7 +233,7 @@ export GCP_PROJECT_ID=your-project-id
 - 低成本（免费额度内约 $1/月）
 - Bearer Token 认证
 
-👉 **详见**：[云端部署指南](docs/DEPLOYMENT.md)
+👉 **详见**：[云端部署指南](DEPLOYMENT.md)
 
 ---
 
@@ -245,25 +241,25 @@ export GCP_PROJECT_ID=your-project-id
 
 ### 核心文档
 
-- [📖 架构概览](docs/ARCHITECTURE.md) - 系统设计和组件
-- [📝 API 端点](docs/API_ENDPOINTS.md) - 完整 REST API 参考
-- [📦 服务层设计](docs/SERVICE_LAYER.md) - 领域模型转换
-- [📋 Schema 管理](docs/SCHEMA_MANAGEMENT.md) - 动态列映射
+- [📖 架构概览](ARCHITECTURE.md) - 系统设计和组件
+- [📝 API 端点](API_ENDPOINTS.md) - 完整 REST API 参考
+- [📦 服务层设计](SERVICE_LAYER.md) - 领域模型转换
+- [📋 Schema 管理](SCHEMA_MANAGEMENT.md) - 动态列映射
 
 ### AI 集成（MCP）
 
-- [🤖 MCP 服务器指南](mcp/README.md) - 完整 MCP 使用指南
-- [🏗️ MCP 设计文档](docs/MCP_DESIGN.md) - 详细架构设计
-- [☁️ MCP 云端部署](docs/MCP_DEPLOYMENT.md) - Cloud Run 设置
-- [🔍 MCP Inspector 指南](docs/MCP_INSPECTOR.md) - 调试工具
+- [🤖 MCP 服务器指南](../mcp/README.md) - 完整 MCP 使用指南
+- [🏗️ MCP 设计文档](MCP_DESIGN.md) - 详细架构设计
+- [☁️ MCP 云端部署](MCP_DEPLOYMENT.md) - Cloud Run 设置
+- [🔍 MCP Inspector 指南](MCP_INSPECTOR.md) - 调试工具
 
 ### 部署与运维
 
-- [☁️ 云端部署](docs/DEPLOYMENT.md) - Cloud Run + Scheduler 设置
-- [💾 存储管理](docs/STORAGE.md) - Google Cloud Storage 配置
-- [🔐 密钥管理](docs/SECRET_MANAGEMENT.md) - Secret Manager 最佳实践
-- [📋 Secrets 清单](docs/SECRETS_INVENTORY.md) - 完整的 Secrets 清单和操作指南
-- [🔧 故障排除](docs/TROUBLESHOOTING.md) - 常见问题和解决方案
+- [☁️ 云端部署](DEPLOYMENT.md) - Cloud Run + Scheduler 设置
+- [💾 存储管理](STORAGE.md) - Google Cloud Storage 配置
+- [🔐 密钥管理](SECRET_MANAGEMENT.md) - Secret Manager 最佳实践
+- [📋 Secrets 清单](SECRETS_INVENTORY.md) - 完整的 Secrets 清单和操作指南
+- [🔧 故障排除](TROUBLESHOOTING.md) - 常见问题和解决方案
 
 ---
 
@@ -423,7 +419,8 @@ Grace-Irvine-Ministry-Clean/
 │   ├── gsheet_utils.py          # Google Sheets 客户端
 │   ├── cloud_storage_utils.py   # Cloud Storage 客户端
 │   ├── change_detector.py       # 变化检测
-│   └── schema_manager.py        # Schema 管理
+│   ├── schema_manager.py        # Schema 管理
+│   └── secret_manager_utils.py  # Secret Manager 工具
 │
 ├── deploy/                      # 📦 部署脚本
 │   ├── deploy-api.sh            # 部署 API 服务
@@ -443,6 +440,8 @@ Grace-Irvine-Ministry-Clean/
 │   ├── MCP_DEPLOYMENT.md        # MCP 云端部署
 │   ├── SERVICE_LAYER.md         # 服务层设计
 │   ├── DEPLOYMENT.md            # 云端部署
+│   ├── SECRET_MANAGEMENT.md     # 密钥管理最佳实践
+│   ├── SECRETS_INVENTORY.md     # Secrets 清单
 │   └── TROUBLESHOOTING.md       # 常见问题
 │
 ├── tests/                       # 🧪 测试
@@ -454,11 +453,11 @@ Grace-Irvine-Ministry-Clean/
 │   ├── clean_preview.csv        # 清洗后数据（CSV）
 │   ├── clean_preview.json       # 清洗后数据（JSON）
 │   ├── service_layer/           # 服务层数据
-│   └── validation_report_*.txt  # 验证报告
+│   └── validation_report_*.txt # 验证报告
 │
 ├── CHANGELOG.md                 # 版本历史
 ├── README.md                    # 英文自述文件
-├── README_CH.md                 # 本文件（中文）
+├── README_CH.md                 # 中文自述文件（本文件）
 ├── requirements.txt             # Python 依赖
 └── .gitignore                   # Git 忽略规则
 ```
@@ -593,7 +592,7 @@ pytest tests/test_cleaning.py::TestCleaningRules::test_clean_date_formats -v
 - 所有 3 个 Cloud Run 服务已集成 Secret Manager
 - 管理的 4 个 secrets：`mcp-bearer-token`、`api-scheduler-token`、`weekly-preview-scheduler-token`、`weekly-preview-smtp-password`
 - 支持自动 token 轮换
-- 详见 [密钥管理指南](docs/SECRET_MANAGEMENT.md) 和 [Secrets 清单](docs/SECRETS_INVENTORY.md)
+- 详见 [密钥管理指南](SECRET_MANAGEMENT.md) 和 [Secrets 清单](SECRETS_INVENTORY.md)
 
 ### 身份认证
 
@@ -645,7 +644,7 @@ cd mcp && python mcp_server.py
 
 ## 📄 许可证
 
-本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
+本项目采用 MIT 许可证。详见 [LICENSE](../LICENSE) 文件。
 
 ---
 
@@ -660,10 +659,11 @@ cd mcp && python mcp_server.py
 
 ## 📞 支持
 
-- **文档**：[docs/](docs/)
+- **文档**：[docs/](.)
 - **问题反馈**：[GitHub Issues](https://github.com/yourusername/Grace-Irvine-Ministry-Clean/issues)
 - **邮箱**：jonathanjing@graceirvine.org
 
 ---
 
 **用 ❤️ 为恩典欧文教会主日事工打造**
+

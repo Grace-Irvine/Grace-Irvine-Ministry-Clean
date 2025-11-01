@@ -101,7 +101,11 @@ cd deploy
 ### 环境变量
 - `PORT`: 服务端口（默认8080）
 - `SCHEDULER_TOKEN`: Cloud Scheduler认证令牌
+  - 生产环境推荐使用 Secret Manager (secret: `api-scheduler-token`)
+  - 本地开发可使用环境变量，服务会自动从 Secret Manager 或环境变量读取
+  - 参考文档: `docs/SECRET_MANAGEMENT.md`
 - `GOOGLE_APPLICATION_CREDENTIALS`: 服务账号路径
+- `GCP_PROJECT_ID`: Google Cloud 项目 ID（启用 Secret Manager 读取时需要）
 
 ## 🔧 架构
 

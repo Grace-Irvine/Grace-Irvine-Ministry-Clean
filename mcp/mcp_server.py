@@ -70,35 +70,120 @@ def load_config() -> Dict[str, Any]:
     try:
         config_file = Path(CONFIG_PATH)
         if not config_file.exists():
-            logger.error(f"Config file not found: {config_file}")
-            return {}
+            logger.warning(f"Config file not found: {config_file}, using environment variables or defaults")
+            # 尝试从环境变量读取配置，默认启用 GCS
+            default_config = {
+                'service_layer': {
+                    'storage': {
+                        'provider': os.getenv('GCS_PROVIDER', 'gcs'),
+                        'bucket': os.getenv('GCS_BUCKET', 'grace-irvine-ministry-data'),
+                        'base_path': os.getenv('GCS_BASE_PATH', 'domains/'),
+                        'service_account_file': os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '/app/config/service-account.json')
+                    }
+                }
+            }
+            logger.info(f"Using default GCS config: provider={default_config['service_layer']['storage']['provider']}, bucket={default_config['service_layer']['storage']['bucket']}")
+            return default_config
         
         with open(config_file, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
         logger.error(f"Failed to load config: {e}")
-        return {}
+        # 使用环境变量作为后备
+        return {
+            'service_layer': {
+                'storage': {
+                    'provider': os.getenv('GCS_PROVIDER', 'gcs'),
+                    'bucket': os.getenv('GCS_BUCKET', 'grace-irvine-ministry-data'),
+                    'base_path': os.getenv('GCS_BASE_PATH', 'domains/'),
+                    'service_account_file': os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '/app/config/service-account.json')
+                }
+            }
+        }
 
 CONFIG = load_config()
 STORAGE_CONFIG = CONFIG.get('service_layer', {}).get('storage', {})
+# 如果 STORAGE_CONFIG 为空，使用默认值
+if not STORAGE_CONFIG:
+    logger.info("STORAGE_CONFIG is empty, using default GCS configuration")
+    STORAGE_CONFIG = {
+        'provider': os.getenv('GCS_PROVIDER', 'gcs'),
+        'bucket': os.getenv('GCS_BUCKET', 'grace-irvine-ministry-data'),
+        'base_path': os.getenv('GCS_BASE_PATH', 'domains/'),
+        'service_account_file': os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '/app/config/service-account.json')
+    }
+    logger.info(f"Default STORAGE_CONFIG: provider={STORAGE_CONFIG.get('provider')}, bucket={STORAGE_CONFIG.get('bucket')}")
 
 # HTTP/SSE 配置
+# 尝试从 Secret Manager 读取 Bearer Token（如果环境变量未设置）
 BEARER_TOKEN = os.getenv("MCP_BEARER_TOKEN", "")
+if not BEARER_TOKEN:
+    try:
+        from core.secret_manager_utils import get_token_from_manager
+        BEARER_TOKEN = get_token_from_manager(
+            token_name="mcp-bearer-token",
+            fallback_env_var="MCP_BEARER_TOKEN"
+        ) or ""
+        if BEARER_TOKEN:
+            logger.info("✅ Bearer Token loaded from Secret Manager")
+        else:
+            logger.warning("⚠️  Bearer Token not found in Secret Manager or environment variables")
+    except Exception as e:
+        logger.warning(f"Failed to load Bearer Token from Secret Manager: {e}")
+        logger.info("Will use environment variable MCP_BEARER_TOKEN if set")
+
 REQUIRE_AUTH = os.getenv("MCP_REQUIRE_AUTH", "true").lower() == "true"
 
 # 初始化 GCS 客户端（如果配置了）
 GCS_CLIENT = None
-if STORAGE_CONFIG.get('provider') == 'gcs':
+# 默认使用 GCS（即使配置为空）
+storage_provider = STORAGE_CONFIG.get('provider', 'gcs') if STORAGE_CONFIG else 'gcs'
+if storage_provider == 'gcs':
     try:
         from core.cloud_storage_utils import DomainStorageManager
         
         # 转换服务账号文件路径为绝对路径
         service_account_file = STORAGE_CONFIG.get('service_account_file')
-        if service_account_file and not Path(service_account_file).is_absolute():
-            service_account_file = str(PROJECT_ROOT / service_account_file)
+        if service_account_file:
+            # 如果是相对路径，转换为绝对路径
+            if not Path(service_account_file).is_absolute():
+                service_account_file = str(PROJECT_ROOT / service_account_file)
+            # 检查文件是否存在
+            if not Path(service_account_file).exists():
+                logger.warning(f"Service account file not found: {service_account_file}, trying GOOGLE_APPLICATION_CREDENTIALS")
+                # 尝试使用环境变量中的路径
+                env_creds = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+                if env_creds and Path(env_creds).exists():
+                    service_account_file = env_creds
+                    logger.info(f"Using service account from GOOGLE_APPLICATION_CREDENTIALS: {service_account_file}")
+                else:
+                    # 如果环境变量也没有，尝试默认路径
+                    default_path = '/app/config/service-account.json'
+                    if Path(default_path).exists():
+                        service_account_file = default_path
+                        logger.info(f"Using default service account path: {service_account_file}")
+                    else:
+                        # 如果没有文件，尝试使用默认凭证（Workload Identity）
+                        service_account_file = None
+                        logger.info("No service account file found, using default credentials (Workload Identity)")
+        else:
+            # 如果没有配置，尝试使用环境变量或默认凭证
+            env_creds = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+            if env_creds and Path(env_creds).exists():
+                service_account_file = env_creds
+                logger.info(f"Using service account from GOOGLE_APPLICATION_CREDENTIALS: {service_account_file}")
+            else:
+                service_account_file = None
+                logger.info("Using default credentials (Workload Identity or environment)")
         
-        bucket_name = STORAGE_CONFIG.get('bucket', '')
-        base_path = STORAGE_CONFIG.get('base_path', 'domains/')
+        # 从配置或环境变量获取 bucket 和 base_path
+        bucket_name = STORAGE_CONFIG.get('bucket') if STORAGE_CONFIG else None
+        if not bucket_name:
+            bucket_name = os.getenv('GCS_BUCKET', 'grace-irvine-ministry-data')
+        
+        base_path = STORAGE_CONFIG.get('base_path') if STORAGE_CONFIG else None
+        if not base_path:
+            base_path = os.getenv('GCS_BASE_PATH', 'domains/')
         
         logger.info(f"Initializing GCS client: bucket={bucket_name}, service_account={service_account_file}")
         

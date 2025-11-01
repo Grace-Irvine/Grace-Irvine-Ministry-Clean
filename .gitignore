@@ -25,6 +25,9 @@ wheels/
 
 # Environment
 .env
+config.env
+secrets.env
+*.env.local
 
 # IDE
 .vscode/

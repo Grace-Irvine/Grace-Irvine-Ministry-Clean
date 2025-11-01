@@ -1,0 +1,55 @@
+steps:
+  # 构建 Docker 镜像
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/weekly-preview-scheduler:latest'
+      - '-f'
+      - 'mcp/example/Dockerfile'
+      - '.'
+    id: 'build-image'
+
+  # 推送镜像到 GCR
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/weekly-preview-scheduler:latest'
+    id: 'push-image-latest'
+
+  # 部署到 Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'weekly-preview-scheduler'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/weekly-preview-scheduler:latest'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '8080'
+      - '--memory'
+      - '512Mi'
+      - '--cpu'
+      - '1'
+      - '--timeout'
+      - '300'
+      - '--max-instances'
+      - '1'
+      - '--set-env-vars'
+      - 'MCP_SERVER_URL=${_MCP_SERVER_URL},MCP_BEARER_TOKEN=${_MCP_BEARER_TOKEN},SMTP_SERVER=${_SMTP_SERVER},SMTP_PORT=${_SMTP_PORT},SMTP_USER=${_SMTP_USER},SMTP_PASSWORD=${_SMTP_PASSWORD},EMAIL_FROM=${_EMAIL_FROM},EMAIL_TO=${_EMAIL_TO},SCHEDULER_TOKEN=${_SCHEDULER_TOKEN}'
+    id: 'deploy-cloud-run'
+
+images:
+  - 'gcr.io/$PROJECT_ID/weekly-preview-scheduler:latest'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '1200s'

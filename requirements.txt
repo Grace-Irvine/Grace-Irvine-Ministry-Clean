@@ -11,6 +11,7 @@ fastapi>=0.118.0
 uvicorn[standard]>=0.37.0
 pydantic>=2.12.0
 python-multipart>=0.0.6
+requests>=2.31.0
 
 # MCP (Model Context Protocol) SDK
 mcp>=1.16.0
@@ -21,4 +22,7 @@ sse-starlette>=2.0.0
 # Cloud Storage (optional, for service layer)
 # Uncomment if you need to upload domain data to GCS
 google-cloud-storage>=2.10.0
+
+# Secret Manager for secure token storage
+google-cloud-secret-manager>=2.20.0
 

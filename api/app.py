@@ -23,6 +23,13 @@ from core.clean_pipeline import CleaningPipeline
 from core.change_detector import ChangeDetector
 from core.service_layer import ServiceLayerManager
 
+# 尝试从 Secret Manager 读取敏感配置
+try:
+    from core.secret_manager_utils import get_token_from_manager
+    USE_SECRET_MANAGER = True
+except ImportError:
+    USE_SECRET_MANAGER = False
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -235,10 +242,21 @@ def verify_scheduler_token(authorization: Optional[str] = None) -> bool:
     if not authorization:
         return False
     
-    # 从环境变量获取预期的令牌
+    # 从环境变量获取预期的令牌（优先），如果没有则从 Secret Manager 读取
     expected_token = os.getenv('SCHEDULER_TOKEN')
+    if not expected_token and USE_SECRET_MANAGER:
+        try:
+            expected_token = get_token_from_manager(
+                token_name="api-scheduler-token",
+                fallback_env_var="SCHEDULER_TOKEN"
+            )
+            if expected_token:
+                logger.info("✅ Scheduler Token loaded from Secret Manager")
+        except Exception as e:
+            logger.warning(f"Failed to load SCHEDULER_TOKEN from Secret Manager: {e}")
+    
     if not expected_token:
-        logger.warning("未设置 SCHEDULER_TOKEN 环境变量，跳过验证")
+        logger.warning("未设置 SCHEDULER_TOKEN 环境变量或 Secret Manager，跳过验证")
         return True
     
     # Bearer token 验证

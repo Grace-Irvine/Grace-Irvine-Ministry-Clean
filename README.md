@@ -257,6 +257,8 @@ export GCP_PROJECT_ID=your-project-id
 
 - [☁️ Cloud Deployment](docs/DEPLOYMENT.md) - Cloud Run + Scheduler setup
 - [💾 Storage Management](docs/STORAGE.md) - Google Cloud Storage configuration
+- [🔐 Secret Management](docs/SECRET_MANAGEMENT.md) - Secret Manager best practices
+- [📋 Secrets Inventory](docs/SECRETS_INVENTORY.md) - Complete secrets list and operations
 - [🔧 Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
 
 ---
@@ -387,7 +389,7 @@ export GCP_PROJECT_ID=your-project-id
 | **Containerization** | Docker           | Container images   |
 | **Cloud Hosting**    | Google Cloud Run | Serverless compute |
 | **Scheduling**       | Cloud Scheduler  | Periodic updates   |
-| **Secrets**          | Secret Manager   | Token storage      |
+| **Secrets**          | Secret Manager   | Token storage (✅ Integrated) |
 | **Logging**          | Cloud Logging    | Centralized logs   |
 
 ---
@@ -576,8 +578,17 @@ Unit tests cover:
 - ❌ **DO NOT** commit service account JSON files to repository
 - ✅ Use `.gitignore` to exclude `*.json` (except `config/config.json`)
 - ✅ Use environment variable `GOOGLE_APPLICATION_CREDENTIALS`
-- ✅ Store tokens in Secret Manager for production
+- ✅ **Secret Manager Integration**: All services automatically read tokens from Google Secret Manager
+- ✅ **Automatic Fallback**: Services read from Secret Manager first, then environment variables
+- ✅ Store tokens in Secret Manager for production (recommended)
+- ✅ Use environment variables for local development
 - ❌ Never print sensitive tokens in logs
+
+**Secret Manager Support**:
+- All 3 Cloud Run services integrate with Secret Manager
+- 4 secrets managed: `mcp-bearer-token`, `api-scheduler-token`, `weekly-preview-scheduler-token`, `weekly-preview-smtp-password`
+- Automatic token rotation support
+- See [Secret Management Guide](docs/SECRET_MANAGEMENT.md) and [Secrets Inventory](docs/SECRETS_INVENTORY.md)
 
 ### Authentication
 
@@ -592,6 +603,7 @@ Unit tests cover:
 - Bearer Token authentication for HTTP/SSE mode (optional)
 - No authentication for stdio mode (local only)
 - CORS middleware enabled for remote clients
+- Bearer Token automatically loaded from Secret Manager (`mcp-bearer-token`)
 
 ---
 
