@@ -457,7 +457,12 @@ Grace-Irvine-Ministry-Clean/
 │
 ├── CHANGELOG.md                 # 版本历史
 ├── README.md                    # 英文自述文件
-├── README_CH.md                 # 中文自述文件（本文件）
+├── docs/                        # 📚 文档
+│   ├── README_CH.md             # 中文自述文件（本文件）
+│   ├── ARCHITECTURE.md          # 系统架构
+│   ├── SECRET_MANAGEMENT.md     # 密钥管理最佳实践
+│   ├── SECRETS_INVENTORY.md     # Secrets 清单
+│   └── ...                      # 其他文档
 ├── requirements.txt             # Python 依赖
 └── .gitignore                   # Git 忽略规则
 ```

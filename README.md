@@ -1,6 +1,6 @@
 # Grace Irvine Ministry Data Management System
 
-> **Language / 语言**: [English](README.md) | [中文](README_CH.md)
+> **Language / 语言**: [English](README.md) | [中文](docs/README_CH.md)
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.118+-green.svg)](https://fastapi.tiangolo.com/)
