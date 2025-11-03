@@ -277,11 +277,13 @@ def get_role_display_name(role: str) -> str:
         
         # 儿童部相关
         'friday_child_ministry': '周五老师',
+        'sunday_child_assistant': '周日助教',  # 通用，不带数字
         'sunday_child_assistant_1': '周日助教1',
         'sunday_child_assistant_2': '周日助教2',
         'sunday_child_assistant_3': '周日助教3',
         
         # 外展联络相关
+        'newcomer_reception': '新人接待',  # 通用，不带数字
         'newcomer_reception_1': '新人接待1',
         'newcomer_reception_2': '新人接待2',
         
@@ -1968,6 +1970,10 @@ async def handle_call_tool(
                 sermon = day_sermons[0]
                 text_lines.append("📖 证道信息:")
                 text_lines.append(f"  • 讲员: {sermon.get('preacher', {}).get('name', '待定')}")
+                reading = sermon.get('reading', {})
+                reading_name = reading.get('name', '').strip() if reading else ''
+                role_display = get_role_display_name('reading')
+                text_lines.append(f"  • {role_display}: {reading_name if reading_name else '待定'}")
                 text_lines.append(f"  • 题目: {sermon.get('sermon', {}).get('title', '待定')}")
                 text_lines.append(f"  • 系列: {sermon.get('sermon', {}).get('series', '待定')}")
                 text_lines.append(f"  • 经文: {sermon.get('sermon', {}).get('scripture', '待定')}")
@@ -2025,6 +2031,22 @@ async def handle_call_tool(
                 assistant_names = [a.get('name', '').strip() for a in sunday_assistants if a.get('name', '').strip()]
                 role_display = get_role_display_name('sunday_child_assistant')
                 text_lines.append(f"    • {role_display}: {', '.join(assistant_names) if assistant_names else '待定'}")
+
+                # 外展联络
+                outreach = volunteer.get('outreach', {})
+                text_lines.append("  🤝 外展联络:")
+
+                # 新人接待1
+                newcomer_reception_1 = outreach.get('newcomer_reception_1', {})
+                role_display = get_role_display_name('newcomer_reception_1')
+                newcomer_name_1 = newcomer_reception_1.get('name', '').strip() if newcomer_reception_1 else ''
+                text_lines.append(f"    • {role_display}: {newcomer_name_1 if newcomer_name_1 else '待定'}")
+
+                # 新人接待2
+                newcomer_reception_2 = outreach.get('newcomer_reception_2', {})
+                role_display = get_role_display_name('newcomer_reception_2')
+                newcomer_name_2 = newcomer_reception_2.get('name', '').strip() if newcomer_reception_2 else ''
+                text_lines.append(f"    • {role_display}: {newcomer_name_2 if newcomer_name_2 else '待定'}")
             else:
                 text_lines.append("\n👥 同工安排: 待定")
             
