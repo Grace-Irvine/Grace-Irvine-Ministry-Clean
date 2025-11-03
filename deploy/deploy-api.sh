@@ -84,8 +84,13 @@ gcloud services enable \
     cloudscheduler.googleapis.com \
     secretmanager.googleapis.com
 
-# 3. 创建服务账号（如果不存在）
-print_header "3. 创建或验证服务账号"
+# 3. 启用 Secret Manager API（如果尚未启用）
+print_header "3. 启用 Secret Manager API"
+gcloud services enable secretmanager.googleapis.com || true
+echo "Secret Manager API 已启用"
+
+# 4. 创建服务账号（如果不存在）
+print_header "4. 创建或验证服务账号"
 if ! gcloud iam service-accounts describe "$SERVICE_ACCOUNT" &> /dev/null; then
     echo "创建服务账号: $SERVICE_ACCOUNT"
     gcloud iam service-accounts create ministry-cleaning-sa \
@@ -98,8 +103,21 @@ else
     echo "服务账号已存在"
 fi
 
-# 4. 验证服务账号密钥文件
-print_header "4. 验证服务账号密钥文件"
+# 授予服务账号 Secret Manager 访问权限
+CLOUD_RUN_SA="${PROJECT_ID}@appspot.gserviceaccount.com"
+echo "授予 Secret Manager 访问权限..."
+if gcloud secrets describe api-scheduler-token --project="$PROJECT_ID" &> /dev/null; then
+    gcloud secrets add-iam-policy-binding api-scheduler-token \
+        --member="serviceAccount:${CLOUD_RUN_SA}" \
+        --role="roles/secretmanager.secretAccessor" \
+        --quiet || true
+    echo "✓ Secret Manager 访问权限已配置"
+else
+    echo "⚠️  Secret 'api-scheduler-token' 不存在，请运行 ./deploy/setup-secrets.sh 创建"
+fi
+
+# 5. 验证服务账号密钥文件
+print_header "5. 验证服务账号密钥文件"
 if [ -f "config/service-account.json" ]; then
     echo "✓ 服务账号密钥文件存在: config/service-account.json"
     echo "  该文件将被复制到 Docker 镜像中"
@@ -109,13 +127,20 @@ else
     exit 1
 fi
 
-# 5. 构建容器镜像
-print_header "5. 构建 Docker 镜像"
+# 6. 构建容器镜像
+print_header "6. 构建 Docker 镜像"
 echo "使用 Dockerfile: $DOCKERFILE_PATH"
 gcloud builds submit --config=api/cloudbuild.yaml --timeout=10m .
 
-# 6. 部署到 Cloud Run
-print_header "6. 部署到 Cloud Run"
+# 7. 部署到 Cloud Run
+print_header "7. 部署到 Cloud Run"
+
+# 设置环境变量
+ENV_VARS="GCP_PROJECT_ID=${PROJECT_ID}"
+if [ -n "$SCHEDULER_TOKEN" ]; then
+    ENV_VARS="${ENV_VARS},SCHEDULER_TOKEN=${SCHEDULER_TOKEN}"
+fi
+
 gcloud run deploy "$SERVICE_NAME" \
     --image="$IMAGE_NAME" \
     --platform=managed \
@@ -125,11 +150,11 @@ gcloud run deploy "$SERVICE_NAME" \
     --max-instances="$MAX_INSTANCES" \
     --timeout="$TIMEOUT" \
     --service-account="$SERVICE_ACCOUNT" \
-    --set-env-vars="SCHEDULER_TOKEN=${SCHEDULER_TOKEN}" \
+    --set-env-vars="$ENV_VARS" \
     --allow-unauthenticated
 
-# 7. 获取服务 URL
-print_header "7. 获取服务信息"
+# 8. 获取服务 URL
+print_header "8. 获取服务信息"
 SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
     --region="$REGION" \
     --format="value(status.url)")

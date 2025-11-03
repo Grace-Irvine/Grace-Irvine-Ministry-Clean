@@ -23,10 +23,20 @@ fi
 
 if [ -z "$MCP_BEARER_TOKEN" ]; then
     echo -e "${YELLOW}Warning: MCP_BEARER_TOKEN is not set${NC}"
-    echo "Generate a secure token with: openssl rand -hex 32"
-    read -p "Enter Bearer Token (or press Enter to skip): " MCP_BEARER_TOKEN
-    if [ -z "$MCP_BEARER_TOKEN" ]; then
-        echo -e "${YELLOW}Deploying without authentication...${NC}"
+    echo "Service will automatically read from Secret Manager if available"
+    # 检查 Secret Manager 中是否有 token
+    if gcloud secrets describe mcp-bearer-token --project=$GCP_PROJECT_ID &> /dev/null 2>&1; then
+        echo -e "${GREEN}✓ Secret 'mcp-bearer-token' exists in Secret Manager${NC}"
+        echo "Service will use token from Secret Manager"
+    else
+        echo -e "${YELLOW}⚠️  Secret 'mcp-bearer-token' does not exist in Secret Manager${NC}"
+        echo "Generate a secure token with: openssl rand -hex 32"
+        if [ "${SKIP_CONFIRM:-false}" != "true" ]; then
+            read -p "Enter Bearer Token (or press Enter to skip): " MCP_BEARER_TOKEN
+            if [ -z "$MCP_BEARER_TOKEN" ]; then
+                echo -e "${YELLOW}Deploying without authentication...${NC}"
+            fi
+        fi
     fi
 fi
 
@@ -50,12 +60,14 @@ echo "  Memory: $MEMORY"
 echo "  CPU: $CPU"
 echo "  Auth Required: $([ -n "$MCP_BEARER_TOKEN" ] && echo 'Yes' || echo 'No')"
 
-# 确认部署
-read -p "Continue with deployment? (y/N) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Deployment cancelled."
-    exit 1
+# 确认部署（非交互模式支持）
+if [ "${SKIP_CONFIRM:-false}" != "true" ]; then
+    read -p "Continue with deployment? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Deployment cancelled."
+        exit 1
+    fi
 fi
 
 # 1. 检查 Google Cloud SDK
@@ -75,7 +87,8 @@ echo -e "\n${GREEN}[2/6] Enabling required APIs...${NC}"
 gcloud services enable \
     cloudbuild.googleapis.com \
     run.googleapis.com \
-    containerregistry.googleapis.com
+    containerregistry.googleapis.com \
+    secretmanager.googleapis.com || true
 echo -e "${GREEN}✓ APIs enabled${NC}"
 
 # 3. 构建 Docker 镜像
@@ -90,6 +103,12 @@ echo -e "${GREEN}✓ Image built: $IMAGE_NAME${NC}"
 # 4. 部署到 Cloud Run
 echo -e "\n${GREEN}[4/6] Deploying to Cloud Run...${NC}"
 
+# 设置环境变量
+ENV_VARS="GCP_PROJECT_ID=${GCP_PROJECT_ID},MCP_MODE=http,MCP_REQUIRE_AUTH=true"
+if [ -n "$MCP_BEARER_TOKEN" ]; then
+    ENV_VARS="${ENV_VARS},MCP_BEARER_TOKEN=${MCP_BEARER_TOKEN}"
+fi
+
 DEPLOY_CMD="gcloud run deploy $SERVICE_NAME \
     --image $IMAGE_NAME \
     --platform managed \
@@ -99,7 +118,7 @@ DEPLOY_CMD="gcloud run deploy $SERVICE_NAME \
     --timeout $TIMEOUT \
     --max-instances $MAX_INSTANCES \
     --min-instances $MIN_INSTANCES \
-    --set-env-vars MCP_MODE=http,MCP_REQUIRE_AUTH=true \
+    --set-env-vars ${ENV_VARS} \
     --allow-unauthenticated"
 
 # 构建 secrets 列表
@@ -129,27 +148,39 @@ fi
 eval $DEPLOY_CMD
 echo -e "${GREEN}✓ Service deployed${NC}"
 
-# 5. 创建或更新 Secret（如果提供了 Token）
-if [ -n "$MCP_BEARER_TOKEN" ]; then
-    echo -e "\n${GREEN}[5/6] Setting up Bearer Token secret...${NC}"
-    
-    # 检查 secret 是否存在
-    if gcloud secrets describe mcp-bearer-token --project=$GCP_PROJECT_ID &> /dev/null 2>&1; then
-        echo "  Secret exists, updating..."
-        echo -n "$MCP_BEARER_TOKEN" | gcloud secrets versions add mcp-bearer-token --data-file=-
-    else
-        echo "  Creating new secret..."
-        echo -n "$MCP_BEARER_TOKEN" | gcloud secrets create mcp-bearer-token --data-file=-
-    fi
-    
-    # 授予 Cloud Run 访问权限
+# 5. 设置 Secret Manager 访问权限
+echo -e "\n${GREEN}[5/6] Setting up Secret Manager access...${NC}"
+
+CLOUD_RUN_SA="${GCP_PROJECT_ID}@appspot.gserviceaccount.com"
+
+# 检查并授予 mcp-bearer-token 访问权限
+if gcloud secrets describe mcp-bearer-token --project=$GCP_PROJECT_ID &> /dev/null 2>&1; then
+    echo "  Secret 'mcp-bearer-token' exists"
+    # 授予访问权限
     gcloud secrets add-iam-policy-binding mcp-bearer-token \
-        --member="serviceAccount:${GCP_PROJECT_ID}@appspot.gserviceaccount.com" \
-        --role="roles/secretmanager.secretAccessor"
-    
-    echo -e "${GREEN}✓ Bearer Token secret configured${NC}"
+        --member="serviceAccount:${CLOUD_RUN_SA}" \
+        --role="roles/secretmanager.secretAccessor" \
+        --quiet || true
+    echo -e "  ${GREEN}✓ Secret Manager access configured${NC}"
 else
-    echo -e "\n${YELLOW}[5/6] Skipping Bearer Token setup (not provided)${NC}"
+    echo -e "  ${YELLOW}⚠️  Secret 'mcp-bearer-token' does not exist${NC}"
+    if [ -n "$MCP_BEARER_TOKEN" ]; then
+        echo "  Creating new secret with provided token..."
+        echo -n "$MCP_BEARER_TOKEN" | gcloud secrets create mcp-bearer-token \
+            --data-file=- \
+            --replication-policy="automatic" \
+            --project=$GCP_PROJECT_ID
+        
+        # 授予访问权限
+        gcloud secrets add-iam-policy-binding mcp-bearer-token \
+            --member="serviceAccount:${CLOUD_RUN_SA}" \
+            --role="roles/secretmanager.secretAccessor"
+        
+        echo -e "  ${GREEN}✓ Bearer Token secret created and configured${NC}"
+    else
+        echo -e "  ${YELLOW}  提示: 运行 ./deploy/setup-secrets.sh 创建 secrets${NC}"
+        echo -e "  或设置 MCP_BEARER_TOKEN 环境变量后重新部署"
+    fi
 fi
 
 # 6. 获取服务 URL
