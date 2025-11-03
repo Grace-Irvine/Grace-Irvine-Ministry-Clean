@@ -22,6 +22,10 @@
     "education": {
       "name": "儿童部",
       "roles": ["friday_child_ministry", "sunday_child_assistant_1", "sunday_child_assistant_2", "sunday_child_assistant_3"]
+    },
+    "outreach": {
+      "name": "外展联络",
+      "roles": ["newcomer_reception_1", "newcomer_reception_2"]
     }
   },
   "schema_validation": {
@@ -54,7 +58,9 @@
     "friday_child_ministry": "周五老师",
     "sunday_child_assistant_1": "周日助教1",
     "sunday_child_assistant_2": "周日助教2",
-    "sunday_child_assistant_3": "周日助教3"
+    "sunday_child_assistant_3": "周日助教3",
+    "newcomer_reception_1": "新人接待1",
+    "newcomer_reception_2": "新人接待2"
   },
   "cleaning_rules": {
     "date_format": "YYYY-MM-DD",
@@ -96,7 +102,9 @@
       "friday_child_ministry",
       "sunday_child_assistant_1",
       "sunday_child_assistant_2",
-      "sunday_child_assistant_3"
+      "sunday_child_assistant_3",
+      "newcomer_reception_1",
+      "newcomer_reception_2"
     ]
   },
   "volunteer_metadata_sheet": {

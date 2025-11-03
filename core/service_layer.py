@@ -128,12 +128,15 @@ class SermonDomainTransformer(DomainTransformer):
                 'title': str(row.get('sermon_title', '')),
                 'series': str(row.get('series', '')),
                 'scripture': str(row.get('scripture', '')),
-                'catechism': str(row.get('catechism', '')),
-                'reading': str(row.get('reading', ''))
+                'catechism': str(row.get('catechism', ''))
             },
             'preacher': {
                 'id': str(row.get('preacher_id', '')),
                 'name': str(row.get('preacher_name', ''))
+            },
+            'reading': {
+                'id': str(row.get('reading_id', '')),
+                'name': str(row.get('reading_name', ''))
             },
             'songs': songs if songs else [],
             'source_row': int(row.get('source_row', 0)) if pd.notna(row.get('source_row')) else None,
@@ -272,9 +275,21 @@ class VolunteerDomainTransformer(DomainTransformer):
                 },
                 'sunday_child_assistants': [
                     {'id': str(row.get(f'sunday_child_assistant_{i}_id', '')), 'name': str(row.get(f'sunday_child_assistant_{i}_name', ''))}
-                    for i in range(1, 4)  # sunday_child_assis  tant_1, sunday_child_assistant_2, sunday_child_assistant_3
+                    for i in range(1, 4)  # sunday_child_assistant_1, sunday_child_assistant_2, sunday_child_assistant_3
                     if row.get(f'sunday_child_assistant_{i}_id') or row.get(f'sunday_child_assistant_{i}_name')
                 ]
+            },
+            # 外展联络
+            'outreach': {
+                'department': str(row.get('newcomer_reception_1_department', '')),
+                'newcomer_reception_1': {
+                    'id': str(row.get('newcomer_reception_1_id', '')),
+                    'name': str(row.get('newcomer_reception_1_name', ''))
+                },
+                'newcomer_reception_2': {
+                    'id': str(row.get('newcomer_reception_2_id', '')),
+                    'name': str(row.get('newcomer_reception_2_name', ''))
+                }
             },
             'source_row': int(row.get('source_row', 0)) if pd.notna(row.get('source_row')) else None,
             'updated_at': str(row.get('updated_at', ''))

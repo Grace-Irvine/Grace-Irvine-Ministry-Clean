@@ -43,7 +43,8 @@ class CleaningPipeline:
         'service_date', 'service_week', 'service_slot',
         'sermon_title', 'series', 'scripture',
         'preacher_id', 'preacher_name', 'preacher_department',
-        'catechism', 'reading',
+        'catechism',
+        'reading_id', 'reading_name', 'reading_department',
         'worship_lead_id', 'worship_lead_name', 'worship_lead_department',
         'worship_team_1_id', 'worship_team_1_name', 'worship_team_1_department',
         'worship_team_2_id', 'worship_team_2_name', 'worship_team_2_department',
@@ -58,6 +59,8 @@ class CleaningPipeline:
         'sunday_child_assistant_1_id', 'sunday_child_assistant_1_name', 'sunday_child_assistant_1_department',
         'sunday_child_assistant_2_id', 'sunday_child_assistant_2_name', 'sunday_child_assistant_2_department',
         'sunday_child_assistant_3_id', 'sunday_child_assistant_3_name', 'sunday_child_assistant_3_department',
+        'newcomer_reception_1_id', 'newcomer_reception_1_name', 'newcomer_reception_1_department',
+        'newcomer_reception_2_id', 'newcomer_reception_2_name', 'newcomer_reception_2_department',
         'notes', 'source_row', 'updated_at'
     ]
     
@@ -244,9 +247,15 @@ class CleaningPipeline:
         cleaned['series'] = self.cleaning_rules.clean_text(row.get('series'))
         cleaned['scripture'] = self.cleaning_rules.clean_scripture(row.get('scripture'))
         
-        # 要理问答和读经
+        # 要理问答
         cleaned['catechism'] = self.cleaning_rules.clean_text(row.get('catechism'))
-        cleaned['reading'] = self.cleaning_rules.clean_text(row.get('reading'))
+        
+        # 读经（作为人名字段，带别名映射）
+        reading_name = self.cleaning_rules.clean_name(row.get('reading'))
+        reading_id, reading_display = self.alias_mapper.resolve(reading_name)
+        cleaned['reading_id'] = reading_id
+        cleaned['reading_name'] = reading_display
+        cleaned['reading_department'] = self.schema_manager.get_department('reading') or ''
         
         # 讲员（带别名映射）
         preacher_name = self.cleaning_rules.clean_name(row.get('preacher'))
@@ -350,6 +359,20 @@ class CleaningPipeline:
         cleaned['sunday_child_assistant_3_name'] = sunday_child_assistant_3_display
         cleaned['sunday_child_assistant_3_department'] = self.schema_manager.get_department('sunday_child_assistant_3') or ''
         
+        # 新人接待1
+        newcomer_reception_1_name = self.cleaning_rules.clean_name(row.get('newcomer_reception_1'))
+        newcomer_reception_1_id, newcomer_reception_1_display = self.alias_mapper.resolve(newcomer_reception_1_name)
+        cleaned['newcomer_reception_1_id'] = newcomer_reception_1_id
+        cleaned['newcomer_reception_1_name'] = newcomer_reception_1_display
+        cleaned['newcomer_reception_1_department'] = self.schema_manager.get_department('newcomer_reception_1') or ''
+        
+        # 新人接待2
+        newcomer_reception_2_name = self.cleaning_rules.clean_name(row.get('newcomer_reception_2'))
+        newcomer_reception_2_id, newcomer_reception_2_display = self.alias_mapper.resolve(newcomer_reception_2_name)
+        cleaned['newcomer_reception_2_id'] = newcomer_reception_2_id
+        cleaned['newcomer_reception_2_name'] = newcomer_reception_2_display
+        cleaned['newcomer_reception_2_department'] = self.schema_manager.get_department('newcomer_reception_2') or ''
+        
         # 备注
         cleaned['notes'] = self.cleaning_rules.clean_text(row.get('notes', ''))
         
@@ -393,7 +416,8 @@ class CleaningPipeline:
             role_fields = alias_config.get('role_fields', [
                 'preacher', 'reading', 'worship_lead', 'worship_team_1', 'worship_team_2',
                 'pianist', 'audio', 'video', 'propresenter_play', 'propresenter_update',
-                'video_editor', 'friday_child_ministry', 'sunday_child_assistant_1', 'sunday_child_assistant_2', 'sunday_child_assistant_3'
+                'video_editor', 'friday_child_ministry', 'sunday_child_assistant_1', 'sunday_child_assistant_2', 'sunday_child_assistant_3',
+                'newcomer_reception_1', 'newcomer_reception_2'
             ])
             
             # 1. 从清洗后的数据中提取所有人名及其出现次数
