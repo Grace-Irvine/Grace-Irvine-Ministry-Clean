@@ -1,7 +1,7 @@
 {
   "source_sheet": {
     "url": "https://docs.google.com/spreadsheets/d/1wescUQe9rIVLNcKdqmSLpzlAw9BGXMZmkFvjEF296nM/edit#gid=0",
-    "range": "总表!A1:Z",
+    "range": "总表!A1:AB",
     "header_rows": 2,
     "department_row": 1,
     "column_row": 2
