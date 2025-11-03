@@ -281,6 +281,10 @@ def get_role_display_name(role: str) -> str:
         'sunday_child_assistant_2': '周日助教2',
         'sunday_child_assistant_3': '周日助教3',
         
+        # 外展联络相关
+        'newcomer_reception_1': '新人接待1',
+        'newcomer_reception_2': '新人接待2',
+        
         # 其他可能的历史字段
         'team': '同工',
         'lead': '主领',
@@ -499,8 +503,31 @@ def format_volunteer_record(record: Dict) -> str:
             lines.append(f"\n👶 {dept_name}:")
             lines.extend(education_members)
     
+    # 处理外展联络
+    outreach = record.get('outreach', {})
+    if outreach:
+        dept_name = departments.get('outreach', {}).get('name', '外展联络')
+        outreach_members = []
+        
+        # 新人接待1
+        newcomer_reception_1 = outreach.get('newcomer_reception_1', {})
+        if newcomer_reception_1 and newcomer_reception_1.get('name'):
+            role_display = get_role_display_name('newcomer_reception_1')
+            outreach_members.append(f"  • {role_display}: {newcomer_reception_1['name']}")
+        
+        # 新人接待2
+        newcomer_reception_2 = outreach.get('newcomer_reception_2', {})
+        if newcomer_reception_2 and newcomer_reception_2.get('name'):
+            role_display = get_role_display_name('newcomer_reception_2')
+            outreach_members.append(f"  • {role_display}: {newcomer_reception_2['name']}")
+        
+        # 只有当有成员时才显示部门标题
+        if outreach_members:
+            lines.append(f"\n🤝 {dept_name}:")
+            lines.extend(outreach_members)
+    
     # 处理其他未分类的字段
-    skip_keys = ['service_date', 'service_week', 'service_slot', 'worship', 'technical', 'education', 'source_row', 'updated_at']
+    skip_keys = ['service_date', 'service_week', 'service_slot', 'worship', 'technical', 'education', 'outreach', 'source_row', 'updated_at']
     for key, value in record.items():
         if key in skip_keys:
             continue

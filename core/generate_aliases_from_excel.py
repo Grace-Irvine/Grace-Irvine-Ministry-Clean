@@ -44,6 +44,7 @@ def extract_people_from_excel(excel_path: str, config_path: str = "config/config
     # 获取人名相关的列（从配置中获取）
     people_columns = [
         'preacher',
+        'reading',
         'worship_lead',
         'worship_team_1',
         'worship_team_2',
@@ -52,7 +53,13 @@ def extract_people_from_excel(excel_path: str, config_path: str = "config/config
         'video',
         'propresenter_play',
         'propresenter_update',
-        'assistant'
+        'video_editor',
+        'friday_child_ministry',
+        'sunday_child_assistant_1',
+        'sunday_child_assistant_2',
+        'sunday_child_assistant_3',
+        'newcomer_reception_1',
+        'newcomer_reception_2'
     ]
     
     # 获取中文列名
