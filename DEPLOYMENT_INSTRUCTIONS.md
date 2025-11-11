@@ -10,8 +10,8 @@ The MCP server has been updated with **proper SSE (Server-Sent Events) transport
 ### Files Modified
 - `mcp/mcp_server.py` - Added `/sse` endpoint, removed incompatible REST endpoints
 - `deploy/deploy-mcp.sh` - Updated deployment script for new endpoints
-- `docs/OPENAI_ALIGNMENT.md` - Added SSE implementation documentation
-- `docs/OPENAI_SETUP.md` - New OpenAI integration guide (created)
+- SSE implementation documentation (已整合到主 README)
+- OpenAI integration guide (已整合到主 README)
 
 ### Key Changes
 
@@ -192,9 +192,7 @@ mcp/
 ├── cloudbuild.yaml        # Build config
 └── README.md              # Documentation
 
-docs/
-├── OPENAI_SETUP.md        # OpenAI integration guide (new)
-└── OPENAI_ALIGNMENT.md    # Alignment report (updated)
+文档已整合到主 README
 
 deploy/
 └── deploy-mcp.sh          # Deployment script (updated)
@@ -211,9 +209,8 @@ deploy/
 ## Support
 
 For more information:
-- [OPENAI_SETUP.md](docs/OPENAI_SETUP.md) - Detailed setup guide
-- [OPENAI_ALIGNMENT.md](docs/OPENAI_ALIGNMENT.md) - Technical details
-- [MCP_CLOUD_RUN_DEPLOYMENT.md](docs/MCP_CLOUD_RUN_DEPLOYMENT.md) - Deployment guide
+- [主README](README.md) - 完整项目文档
+- [MCP服务器文档](mcp/README.md) - MCP 集成指南
 
 ---
 

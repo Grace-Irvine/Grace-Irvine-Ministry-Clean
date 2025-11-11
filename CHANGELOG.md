@@ -83,7 +83,7 @@ fi
 #### 相关文档更新 📚
 
 - ✅ 更新 `README.md` - 添加 Secret Manager 集成说明
-- ✅ 更新 `docs/ARCHITECTURE.md` - 更新部署架构和安全架构说明
+- ✅ 更新部署架构和安全架构说明
 - ✅ 更新 `CHANGELOG.md` - 记录本次更新
 
 ---
@@ -132,8 +132,8 @@ fi
 
 ##### 4. 文档完善
 
-- ✅ 新增 `docs/SECRET_MANAGEMENT.md` - Secret Manager 最佳实践指南
-- ✅ 新增 `docs/SECRETS_INVENTORY.md` - 完整的 Secrets 清单和操作指南
+- ✅ 新增 Secret Manager 最佳实践指南
+- ✅ 新增完整的 Secrets 清单和操作指南
 - ✅ 更新所有配置文件（`config/env.example`, `mcp/example/config.env.example`, `mcp/example/secrets.env.example`）
 - ✅ 更新服务文档（`api/README.md`）
 - ✅ 更新主 README 文档（Secret Manager 集成说明）
@@ -177,8 +177,8 @@ fi
 
 #### 参考文档 📚
 
-- [Secret Management Best Practices](docs/SECRET_MANAGEMENT.md) - 最佳实践指南
-- [Secrets Inventory](docs/SECRETS_INVENTORY.md) - 完整的 Secrets 清单
+- Secret Manager 最佳实践指南（已整合到主 README）
+- Secrets 清单（已整合到主 README）
 
 ---
 

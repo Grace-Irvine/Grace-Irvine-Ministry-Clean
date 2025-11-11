@@ -103,7 +103,7 @@ cd deploy
 - `SCHEDULER_TOKEN`: Cloud Scheduler认证令牌
   - 生产环境推荐使用 Secret Manager (secret: `api-scheduler-token`)
   - 本地开发可使用环境变量，服务会自动从 Secret Manager 或环境变量读取
-  - 参考文档: `docs/SECRET_MANAGEMENT.md`
+  - 参考文档: 主 README 中的 Secret Manager 部分
 - `GOOGLE_APPLICATION_CREDENTIALS`: 服务账号路径
 - `GCP_PROJECT_ID`: Google Cloud 项目 ID（启用 Secret Manager 读取时需要）
 
@@ -144,8 +144,6 @@ curl https://ministry-data-api-xxx.run.app/health
 ```
 
 ## 🔗 相关文档
-- [部署指南](../docs/DEPLOYMENT.md)
-- [API端点文档](../docs/API_ENDPOINTS.md)
-- [服务层架构](../docs/SERVICE_LAYER.md)
-- [主README](../README.md)
+- [主README](../README.md) - 完整项目文档
+- [MCP服务器文档](../mcp/README.md) - MCP 集成指南
 
