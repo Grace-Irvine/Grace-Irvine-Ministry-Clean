@@ -427,6 +427,60 @@ def get_person_records(records: List[Dict], person_identifier: str) -> List[Dict
     return result
 
 
+def load_alias_mapper() -> Optional[Any]:
+    """
+    加载别名映射器
+    
+    Returns:
+        AliasMapper 实例，如果加载失败返回 None
+    """
+    try:
+        from core.alias_utils import AliasMapper
+        from core.gsheet_utils import GSheetClient
+        
+        alias_config = CONFIG.get('alias_sources', {}).get('people_alias_sheet')
+        if not alias_config:
+            logger.warning("未配置别名数据源")
+            return None
+        
+        mapper = AliasMapper()
+        client = GSheetClient()
+        mapper.load_from_sheet(
+            client,
+            alias_config['url'],
+            alias_config['range']
+        )
+        logger.info(f"成功加载别名映射: {mapper.get_stats()}")
+        return mapper
+    except Exception as e:
+        logger.warning(f"加载别名映射失败: {e}")
+        return None
+
+
+def get_person_id_to_display_name_map(mapper: Optional[Any]) -> Dict[str, str]:
+    """
+    从 alias mapper 构建 person_id 到 display_name 的映射
+    
+    Args:
+        mapper: AliasMapper 实例
+        
+    Returns:
+        person_id -> display_name 的字典
+    """
+    if not mapper:
+        return {}
+    
+    id_to_display = {}
+    # 遍历 alias_map 中的所有值，提取 (person_id, display_name) 对
+    for alias, (person_id, display_name) in mapper.alias_map.items():
+        if person_id and display_name:
+            # 如果同一个 person_id 有多个 display_name，保留第一个
+            if person_id not in id_to_display:
+                id_to_display[person_id] = display_name
+    
+    return id_to_display
+
+
 def format_volunteer_record(record: Dict) -> str:
     """格式化单条同工服侍记录为可读文本（动态使用配置中的岗位名称）"""
     lines = [f"📅 服侍日期: {record.get('service_date', 'N/A')}"]
@@ -1227,6 +1281,42 @@ async def handle_list_tools() -> list[types.Tool]:
                 "openai/toolInvocation/invoked": "生成完成"
             }
         ),
+        # ========== 统计工具 ==========
+        types.Tool(
+            name="get_volunteer_service_counts",
+            description="根据同工名字生成服侍次数统计，使用alias中的display_name去重和显示。支持按服侍次数范围筛选（如：列出服侍次数在5次以下的同工）",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "year": {
+                        "type": "string",
+                        "description": "可选：指定年份（如 '2025'），默认统计所有年份",
+                        "default": None
+                    },
+                    "sort_by": {
+                        "type": "string",
+                        "enum": ["count", "name"],
+                        "description": "排序方式：'count' 按服侍次数降序，'name' 按姓名排序",
+                        "default": "count"
+                    },
+                    "min_count": {
+                        "type": "integer",
+                        "description": "可选：最小服侍次数（包含），如设置5表示只统计服侍次数>=5的同工",
+                        "default": None
+                    },
+                    "max_count": {
+                        "type": "integer",
+                        "description": "可选：最大服侍次数（包含），如设置5表示只统计服侍次数<=5的同工（可用于查询'服侍次数在5次以下的同工'）",
+                        "default": None
+                    }
+                },
+                "required": []
+            },
+            meta={
+                "openai/toolInvocation/invoking": "正在统计同工服侍次数...",
+                "openai/toolInvocation/invoked": "统计完成"
+            }
+        ),
         # ========== 诊断工具 ==========
         types.Tool(
             name="diagnose_gcs_connection",
@@ -1410,6 +1500,198 @@ async def handle_call_tool(
                     "total_count": total_count
                 }
             )]
+        
+        elif name == "get_volunteer_service_counts":
+            """根据同工名字生成服侍次数统计，使用alias中的display_name去重和显示"""
+            try:
+                year = arguments.get("year")
+                sort_by = arguments.get("sort_by", "count")
+                min_count = arguments.get("min_count")
+                max_count = arguments.get("max_count")
+                
+                # 加载 volunteer 数据
+                volunteer_data = load_service_layer_data("volunteer", year)
+                if "error" in volunteer_data:
+                    return [types.TextContent(
+                        type="text",
+                        text=f"加载数据失败：{volunteer_data['error']}",
+                        structuredContent={
+                            "success": False,
+                            "error": volunteer_data["error"]
+                        }
+                    )]
+                
+                volunteers = volunteer_data.get("volunteers", [])
+                
+                # 加载 alias 映射
+                alias_mapper = load_alias_mapper()
+                id_to_display = get_person_id_to_display_name_map(alias_mapper)
+                
+                # 统计服侍次数
+                # 使用 display_name 作为键进行去重统计
+                service_counts = {}  # display_name -> count
+                person_details = {}  # display_name -> {person_id, roles, dates}
+                
+                def add_person_stat(person_id: str, person_name: str, role_key: str, service_date: str):
+                    """添加人员统计"""
+                    if not person_id and not person_name:
+                        return
+                    
+                    # 使用 alias 映射获取 display_name
+                    display_name = id_to_display.get(person_id, person_name) if person_id else person_name
+                    
+                    if not display_name:
+                        return
+                    
+                    if display_name not in service_counts:
+                        service_counts[display_name] = 0
+                        person_details[display_name] = {
+                            "person_id": person_id,
+                            "display_name": display_name,
+                            "roles": set(),
+                            "dates": []
+                        }
+                    
+                    service_counts[display_name] += 1
+                    person_details[display_name]["dates"].append(service_date)
+                    # 获取角色名称
+                    role_display = get_role_display_name(role_key)
+                    person_details[display_name]["roles"].add(role_display)
+                
+                for record in volunteers:
+                    service_date = record.get("service_date", "")
+                    if not service_date:
+                        continue
+                    
+                    # 处理 worship 部门
+                    worship = record.get("worship", {})
+                    if worship:
+                        # 敬拜主领
+                        lead = worship.get("lead", {})
+                        if lead:
+                            add_person_stat(lead.get("id", ""), lead.get("name", ""), "worship_lead", service_date)
+                        
+                        # 敬拜团队
+                        team = worship.get("team", [])
+                        for member in team:
+                            if isinstance(member, dict):
+                                add_person_stat(member.get("id", ""), member.get("name", ""), "worship_team", service_date)
+                        
+                        # 司琴
+                        pianist = worship.get("pianist", {})
+                        if pianist:
+                            add_person_stat(pianist.get("id", ""), pianist.get("name", ""), "pianist", service_date)
+                    
+                    # 处理 technical 部门
+                    technical = record.get("technical", {})
+                    if technical:
+                        tech_roles = ["audio", "video", "propresenter_play", "propresenter_update", "video_editor"]
+                        for role_key in tech_roles:
+                            person = technical.get(role_key, {})
+                            if person:
+                                add_person_stat(person.get("id", ""), person.get("name", ""), role_key, service_date)
+                    
+                    # 处理 education 部门
+                    education = record.get("education", {})
+                    if education:
+                        # 周五老师
+                        friday_child = education.get("friday_child_ministry", {})
+                        if friday_child:
+                            add_person_stat(friday_child.get("id", ""), friday_child.get("name", ""), "friday_child_ministry", service_date)
+                        
+                        # 周日助教
+                        sunday_assistants = education.get("sunday_child_assistants", [])
+                        for assistant in sunday_assistants:
+                            if isinstance(assistant, dict):
+                                add_person_stat(assistant.get("id", ""), assistant.get("name", ""), "sunday_child_assistant", service_date)
+                    
+                    # 处理 outreach 部门
+                    outreach = record.get("outreach", {})
+                    if outreach:
+                        outreach_roles = ["newcomer_reception_1", "newcomer_reception_2"]
+                        for role_key in outreach_roles:
+                            person = outreach.get(role_key, {})
+                            if person:
+                                add_person_stat(person.get("id", ""), person.get("name", ""), role_key, service_date)
+                
+                # 构建结果列表
+                results = []
+                for display_name, count in service_counts.items():
+                    # 应用过滤条件
+                    if min_count is not None and count < min_count:
+                        continue
+                    if max_count is not None and count > max_count:
+                        continue
+                    
+                    details = person_details[display_name]
+                    results.append({
+                        "display_name": display_name,
+                        "person_id": details["person_id"],
+                        "service_count": count,
+                        "roles": sorted(list(details["roles"])),
+                        "first_service": min(details["dates"]) if details["dates"] else None,
+                        "last_service": max(details["dates"]) if details["dates"] else None
+                    })
+                
+                # 排序
+                if sort_by == "count":
+                    results.sort(key=lambda x: x["service_count"], reverse=True)
+                else:  # sort_by == "name"
+                    results.sort(key=lambda x: x["display_name"])
+                
+                # 格式化文本输出
+                filter_desc = []
+                if year:
+                    filter_desc.append(f"{year}年")
+                if min_count is not None:
+                    filter_desc.append(f"服侍次数>={min_count}次")
+                if max_count is not None:
+                    filter_desc.append(f"服侍次数<={max_count}次")
+                
+                if filter_desc:
+                    title = f"📊 同工服侍次数统计（{', '.join(filter_desc)}，共 {len(results)} 人）\n"
+                else:
+                    title = f"📊 同工服侍次数统计（共 {len(results)} 人）\n"
+                
+                text_lines = [title]
+                
+                text_lines.append("=" * 60)
+                for i, person in enumerate(results, 1):
+                    text_lines.append(f"\n{i}. {person['display_name']}")
+                    text_lines.append(f"   服侍次数: {person['service_count']} 次")
+                    if person['roles']:
+                        text_lines.append(f"   服侍岗位: {', '.join(person['roles'])}")
+                    if person['first_service'] and person['last_service']:
+                        text_lines.append(f"   服侍时间: {person['first_service']} 至 {person['last_service']}")
+                
+                formatted_text = '\n'.join(text_lines)
+                
+                return [types.TextContent(
+                    type="text",
+                    text=formatted_text,
+                    structuredContent={
+                        "success": True,
+                        "year": year,
+                        "min_count": min_count,
+                        "max_count": max_count,
+                        "total_volunteers": len(results),
+                        "statistics": results,
+                        "data_source": {
+                            "source": volunteer_data.get("_data_source", "unknown"),
+                            "loaded_at": volunteer_data.get("_loaded_at", "unknown")
+                        }
+                    }
+                )]
+            except Exception as e:
+                logger.error(f"统计服侍次数失败: {e}", exc_info=True)
+                return [types.TextContent(
+                    type="text",
+                    text=f"统计失败：{str(e)}",
+                    structuredContent={
+                        "success": False,
+                        "error": str(e)
+                    }
+                )]
         
         elif name == "diagnose_gcs_connection":
             """诊断 GCS 连接状态"""

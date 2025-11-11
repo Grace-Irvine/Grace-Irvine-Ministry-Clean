@@ -222,8 +222,14 @@ Deploy API and MCP services to Google Cloud Run:
 # Set GCP project ID
 export GCP_PROJECT_ID=your-project-id
 
+# Setup secrets in Secret Manager (first time only)
+./deploy/setup-secrets.sh
+
 # Deploy all services
 ./deploy/deploy-all.sh
+
+# Setup Cloud Scheduler (automatically reads token from Secret Manager)
+./deploy/setup-scheduler.sh
 ```
 
 **Features**:
@@ -232,6 +238,8 @@ export GCP_PROJECT_ID=your-project-id
 - Scheduled updates (every 30 minutes)
 - Low cost (~$1/month in free tier)
 - Bearer token authentication
+- **Automatic Token Management**: All scripts automatically read tokens from Secret Manager
+- **Unified Configuration**: No hardcoded tokens, all managed through Secret Manager
 
 👉 **See**: [Cloud Deployment Guide](docs/DEPLOYMENT.md)
 
@@ -352,6 +360,8 @@ export GCP_PROJECT_ID=your-project-id
 - Cloud Scheduler triggers every 30 minutes
 - Change detection prevents unnecessary runs
 - Automated data updates
+- **Token Management**: Scheduler job automatically reads token from Secret Manager via `deploy/setup-scheduler.sh`
+- **Unified Authentication**: Scheduler and API service use the same token from Secret Manager, ensuring consistency
 
 **Cost Optimization**:
 
@@ -578,16 +588,19 @@ Unit tests cover:
 - ❌ **DO NOT** commit service account JSON files to repository
 - ✅ Use `.gitignore` to exclude `*.json` (except `config/config.json`)
 - ✅ Use environment variable `GOOGLE_APPLICATION_CREDENTIALS`
-- ✅ **Secret Manager Integration**: All services automatically read tokens from Google Secret Manager
+- ✅ **Secret Manager Integration**: All services and deployment scripts automatically read tokens from Google Secret Manager
 - ✅ **Automatic Fallback**: Services read from Secret Manager first, then environment variables
+- ✅ **No Hardcoded Tokens**: All deployment scripts (`deploy/setup-scheduler.sh`, `deploy/deploy-api.sh`) automatically read from Secret Manager
 - ✅ Store tokens in Secret Manager for production (recommended)
 - ✅ Use environment variables for local development
 - ❌ Never print sensitive tokens in logs
 
 **Secret Manager Support**:
 - All 3 Cloud Run services integrate with Secret Manager
+- All deployment scripts automatically read from Secret Manager
 - 4 secrets managed: `mcp-bearer-token`, `api-scheduler-token`, `weekly-preview-scheduler-token`, `weekly-preview-smtp-password`
 - Automatic token rotation support
+- **Unified Token Management**: Scheduler jobs and services use the same tokens from Secret Manager, automatically synchronized
 - See [Secret Management Guide](docs/SECRET_MANAGEMENT.md) and [Secrets Inventory](docs/SECRETS_INVENTORY.md)
 
 ### Authentication

@@ -23,8 +23,8 @@ CPU="1"
 MAX_INSTANCES="3"
 TIMEOUT="600s"  # 10 分钟超时（数据处理可能需要较长时间）
 
-# 环境变量（安全令牌，用于 Cloud Scheduler 认证）
-SCHEDULER_TOKEN="${SCHEDULER_TOKEN:-$(openssl rand -hex 32)}"
+# 环境变量（不再设置 SCHEDULER_TOKEN，让服务从 Secret Manager 读取）
+# SCHEDULER_TOKEN 将从 Secret Manager 的 api-scheduler-token 读取
 
 # 服务账号配置
 SERVICE_ACCOUNT="${SERVICE_ACCOUNT:-ministry-cleaning-sa@${PROJECT_ID}.iam.gserviceaccount.com}"
@@ -135,10 +135,14 @@ gcloud builds submit --config=api/cloudbuild.yaml --timeout=10m .
 # 7. 部署到 Cloud Run
 print_header "7. 部署到 Cloud Run"
 
-# 设置环境变量
+# 设置环境变量（只设置 GCP_PROJECT_ID，让服务从 Secret Manager 读取 SCHEDULER_TOKEN）
 ENV_VARS="GCP_PROJECT_ID=${PROJECT_ID}"
-if [ -n "$SCHEDULER_TOKEN" ]; then
-    ENV_VARS="${ENV_VARS},SCHEDULER_TOKEN=${SCHEDULER_TOKEN}"
+
+# 验证 Secret Manager 中的 token 是否存在
+if ! gcloud secrets describe api-scheduler-token --project="$PROJECT_ID" &>/dev/null; then
+    echo "⚠️  警告: Secret 'api-scheduler-token' 不存在"
+    echo "  服务将无法从 Secret Manager 读取 token"
+    echo "  请运行 ./deploy/setup-secrets.sh 创建 secret"
 fi
 
 gcloud run deploy "$SERVICE_NAME" \
@@ -167,10 +171,7 @@ echo "API 文档: ${SERVICE_URL}/docs"
 echo "健康检查: ${SERVICE_URL}/health"
 echo ""
 echo "⚠️  下一步："
-echo "1. 保存 SCHEDULER_TOKEN 以供 Cloud Scheduler 使用："
-echo "   export SCHEDULER_TOKEN='${SCHEDULER_TOKEN}'"
-echo ""
-echo "2. 测试 API 端点："
+echo "1. 测试 API 端点："
 echo "   # 健康检查"
 echo "   curl ${SERVICE_URL}/health"
 echo ""
@@ -179,10 +180,20 @@ echo "   curl -X POST \"${SERVICE_URL}/api/v1/clean\" \\"
 echo "     -H \"Content-Type: application/json\" \\"
 echo "     -d '{\"dry_run\": true}'"
 echo ""
-echo "3. 设置 Cloud Scheduler (可选)："
-echo "   ./setup-cloud-scheduler.sh"
+echo "2. 设置 Cloud Scheduler："
+echo "   ./deploy/setup-scheduler.sh"
+echo "   (脚本会自动从 Secret Manager 读取 token)"
 echo ""
-echo "4. 查看部署详情："
-echo "   cat DEPLOYMENT_SUCCESS.md"
+echo "3. 验证 Secret Manager 配置："
+echo "   # 检查 secret 是否存在"
+echo "   gcloud secrets describe api-scheduler-token --project=$PROJECT_ID"
+echo ""
+echo "   # 验证服务账号权限"
+echo "   gcloud secrets get-iam-policy api-scheduler-token --project=$PROJECT_ID"
+echo ""
+echo "📝 注意："
+echo "   - SCHEDULER_TOKEN 不再通过环境变量设置"
+echo "   - 服务会自动从 Secret Manager 读取 api-scheduler-token"
+echo "   - 确保 Cloud Run 服务账号有 Secret Manager 访问权限"
 echo ""
 

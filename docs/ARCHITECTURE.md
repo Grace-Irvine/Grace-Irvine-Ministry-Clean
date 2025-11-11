@@ -94,9 +94,11 @@ Grace-Irvine-Ministry-Clean/
 │   └── schema_manager.py         # Schema管理
 │
 ├── deploy/                       # 部署脚本
-│   ├── deploy-api.sh             # API服务部署
+│   ├── deploy-api.sh             # API服务部署（自动从Secret Manager读取token）
 │   ├── deploy-mcp.sh             # MCP服务部署
-│   └── deploy-all.sh             # 统一部署脚本
+│   ├── deploy-all.sh             # 统一部署脚本
+│   ├── setup-scheduler.sh        # Cloud Scheduler配置（自动从Secret Manager读取token）
+│   └── setup-secrets.sh          # Secret Manager设置脚本
 │
 ├── config/                       # 配置文件
 │   ├── config.json               # 主配置
@@ -316,21 +318,30 @@ AI助手
 
 ### API服务
 - **Cloud Scheduler认证**: Bearer Token保护定时端点
+  - Token从 Secret Manager 的 `api-scheduler-token` 自动读取
+  - 不再通过环境变量设置，完全依赖 Secret Manager
 - **服务账号**: 最小权限访问Google Sheets
 - **公开端点**: `/health`, `/docs` 等只读端点
 - **保护端点**: `/trigger-cleaning` 需要认证
 
 ### MCP服务
 - **Bearer Token**: 所有MCP端点需要认证
-- **Secret Manager**: Token存储在GCP Secrets
+  - Token从 Secret Manager 的 `mcp-bearer-token` 自动读取
+- **Secret Manager**: 所有 tokens 存储在 GCP Secret Manager
 - **CORS配置**: 限制跨域访问
 - **服务账号**: 只读访问数据源
+
+### Cloud Scheduler
+- **自动配置**: `deploy/setup-scheduler.sh` 自动从 Secret Manager 读取 token
+- **统一管理**: 与 API 服务使用相同的 token，自动保持同步
+- **无硬编码**: 所有 tokens 都从 Secret Manager 读取，不硬编码在脚本中
 
 ### 配置文件
 - ❌ 不提交 `service-account.json` 到仓库
 - ✅ 使用 `.gitignore` 排除敏感文件
-- ✅ 生产环境使用Secret Manager
-- ✅ 环境变量传递配置
+- ✅ **生产环境完全使用 Secret Manager**（推荐）
+- ✅ 本地开发使用环境变量作为降级方案
+- ✅ 所有部署脚本自动从 Secret Manager 读取 tokens
 
 ---
 
@@ -477,6 +488,6 @@ PORT=8080 python mcp/mcp_server.py
 
 ---
 
-**版本**: 3.4  
-**最后更新**: 2025-10-13  
+**版本**: 4.2  
+**最后更新**: 2025-11-10  
 **状态**: ✅ 生产环境
