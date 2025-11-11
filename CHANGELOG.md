@@ -5,6 +5,89 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [4.2.0] - 2025-11-10
+
+### 🔧 部署脚本改进：完全集成 Secret Manager
+
+**修复 Cloud Scheduler 认证失败问题，统一使用 Secret Manager 管理 tokens**
+
+#### 问题修复 🐛
+
+##### 1. Cloud Scheduler 认证失败
+- **问题**: Scheduler job 使用硬编码的旧 token，与 Secret Manager 中的 token 不匹配，导致 401 认证失败
+- **根本原因**: 
+  - Scheduler job 配置使用硬编码 token
+  - API 服务从 Secret Manager 读取 token
+  - 两者不匹配导致认证失败
+- **解决方案**: 
+  - ✅ 更新 `deploy/setup-scheduler.sh` 从 Secret Manager 自动读取 token
+  - ✅ 更新 `deploy/deploy-api.sh` 移除环境变量中的 SCHEDULER_TOKEN
+  - ✅ 统一使用 Secret Manager 作为唯一 token 来源
+
+#### 脚本更新 ✨
+
+##### 1. `deploy/setup-scheduler.sh` - Cloud Scheduler 配置脚本
+
+**主要改进**:
+- ✅ **自动从 Secret Manager 读取 token**: 不再硬编码，自动从 `api-scheduler-token` 读取
+- ✅ **自动获取服务 URL**: 从 Cloud Run 服务自动获取，无需手动配置
+- ✅ **使用正确的 Authorization header**: 使用 `Authorization: Bearer <token>` 格式
+- ✅ **使用正确的端点**: 使用 `/trigger-cleaning` 端点（而不是 `/api/v1/clean`）
+- ✅ **增强错误处理**: 添加完整的验证和错误提示
+
+**关键代码**:
+```bash
+# 从 Secret Manager 读取 token
+SCHEDULER_TOKEN=$(gcloud secrets versions access latest \
+    --secret="api-scheduler-token" \
+    --project="$PROJECT_ID")
+
+# 使用正确的 Authorization header
+--update-headers="Authorization=Bearer ${SCHEDULER_TOKEN},Content-Type=application/json"
+```
+
+##### 2. `deploy/deploy-api.sh` - API 服务部署脚本
+
+**主要改进**:
+- ✅ **移除环境变量中的 SCHEDULER_TOKEN**: 不再通过环境变量设置 token
+- ✅ **完全依赖 Secret Manager**: API 服务自动从 Secret Manager 读取 `api-scheduler-token`
+- ✅ **添加 Secret Manager 验证**: 部署前检查 secret 是否存在
+- ✅ **更新部署说明**: 添加 Secret Manager 配置验证步骤
+
+**关键代码**:
+```bash
+# 只设置 GCP_PROJECT_ID，让服务从 Secret Manager 读取 token
+ENV_VARS="GCP_PROJECT_ID=${PROJECT_ID}"
+
+# 验证 Secret Manager 配置
+if ! gcloud secrets describe api-scheduler-token --project="$PROJECT_ID" &>/dev/null; then
+    echo "⚠️  警告: Secret 'api-scheduler-token' 不存在"
+fi
+```
+
+#### 优势 🌟
+
+1. **✅ 安全性提升**: Token 不再硬编码在脚本中，统一存储在 Secret Manager
+2. **✅ 统一管理**: 所有 token 都从 Secret Manager 读取，避免不一致
+3. **✅ 自动同步**: Scheduler job 和 API 服务使用相同的 token，自动保持同步
+4. **✅ 易于维护**: 更新 token 只需更新 Secret Manager，无需修改脚本
+5. **✅ 错误处理**: 添加完整的验证和错误提示，便于排查问题
+
+#### 验证结果 ✅
+
+- ✅ Scheduler job 成功从 Secret Manager 读取 token
+- ✅ API 服务成功从 Secret Manager 读取 token
+- ✅ Scheduler job 调用 API 服务返回 HTTP 200（之前是 401）
+- ✅ 所有认证流程正常工作
+
+#### 相关文档更新 📚
+
+- ✅ 更新 `README.md` - 添加 Secret Manager 集成说明
+- ✅ 更新 `docs/ARCHITECTURE.md` - 更新部署架构和安全架构说明
+- ✅ 更新 `CHANGELOG.md` - 记录本次更新
+
+---
+
 ## [4.0.3] - 2025-01-XX
 
 ### 🔐 安全增强：Google Secret Manager 集成

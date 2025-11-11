@@ -1,6 +1,6 @@
 #!/bin/bash
 # 配置 Cloud Scheduler 自动运行数据清洗任务
-# 每周日凌晨2点自动运行
+# 每30分钟自动运行
 
 set -e
 
@@ -21,16 +21,40 @@ REGION="${GCP_REGION:-us-central1}"
 SERVICE_NAME="ministry-data-cleaning"
 JOB_NAME="ministry-data-cleaning-scheduler"
 
-# 服务URL
-SERVICE_URL="https://ministry-data-cleaning-760303847302.us-central1.run.app"
+# 服务URL（从 Cloud Run 服务自动获取）
+if [ -z "$SERVICE_URL" ]; then
+    echo -e "${YELLOW}从 Cloud Run 服务获取 URL...${NC}"
+    SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
+        --region="$REGION" \
+        --project="$PROJECT_ID" \
+        --format="value(status.url)" 2>/dev/null || echo "")
+    
+    if [ -z "$SERVICE_URL" ]; then
+        echo -e "${RED}错误: 无法获取服务 URL，请手动设置 SERVICE_URL 环境变量${NC}"
+        exit 1
+    fi
+fi
 
-# Scheduler Token (从Cloud Run环境变量中获取)
-SCHEDULER_TOKEN="cfa09ce3aa0648d9fe784b3af1975c7534621c5c64b9c0c15446ad8b3908c2f3"
+# Scheduler Token (从 Secret Manager 读取)
+SECRET_NAME="api-scheduler-token"
+echo -e "${YELLOW}从 Secret Manager 读取 token...${NC}"
+if gcloud secrets describe "$SECRET_NAME" --project="$PROJECT_ID" &>/dev/null; then
+    SCHEDULER_TOKEN=$(gcloud secrets versions access latest --secret="$SECRET_NAME" --project="$PROJECT_ID" 2>/dev/null || echo "")
+    if [ -z "$SCHEDULER_TOKEN" ]; then
+        echo -e "${RED}错误: 无法从 Secret Manager 读取 token${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ 成功从 Secret Manager 读取 token${NC}"
+else
+    echo -e "${RED}错误: Secret '$SECRET_NAME' 不存在${NC}"
+    echo -e "${YELLOW}请先运行 ./deploy/setup-secrets.sh 创建 secret${NC}"
+    exit 1
+fi
 
 # 调度配置
-SCHEDULE="0 2 * * 0"  # 每周日凌晨2点
+SCHEDULE="*/30 * * * *"  # 每30分钟
 TIMEZONE="America/Los_Angeles"
-DESCRIPTION="Weekly ministry data cleaning job - runs every Sunday at 2 AM"
+DESCRIPTION="Ministry data cleaning job - runs every 30 minutes"
 
 echo -e "\n${GREEN}配置信息:${NC}"
 echo "  Project ID: $PROJECT_ID"
@@ -38,7 +62,7 @@ echo "  Region: $REGION"
 echo "  Job Name: $JOB_NAME"
 echo "  Service URL: $SERVICE_URL"
 echo "  Schedule: $SCHEDULE ($TIMEZONE)"
-echo "  Token: ${SCHEDULER_TOKEN:0:20}..."
+echo "  Token: ${SCHEDULER_TOKEN:0:20}... (从 Secret Manager 读取)"
 echo ""
 
 # 检查是否已存在scheduler job
@@ -51,10 +75,9 @@ if gcloud scheduler jobs describe "$JOB_NAME" --location="$REGION" &>/dev/null; 
         --location="$REGION" \
         --schedule="$SCHEDULE" \
         --time-zone="$TIMEZONE" \
-        --uri="${SERVICE_URL}/api/v1/clean" \
+        --uri="${SERVICE_URL}/trigger-cleaning" \
         --http-method=POST \
-        --headers="Content-Type=application/json,X-Scheduler-Token=${SCHEDULER_TOKEN}" \
-        --message-body='{"dry_run": false}' \
+        --update-headers="Authorization=Bearer ${SCHEDULER_TOKEN},Content-Type=application/json" \
         --description="$DESCRIPTION"
 
     echo -e "${GREEN}✓ 作业更新成功${NC}"
@@ -66,10 +89,9 @@ else
         --location="$REGION" \
         --schedule="$SCHEDULE" \
         --time-zone="$TIMEZONE" \
-        --uri="${SERVICE_URL}/api/v1/clean" \
+        --uri="${SERVICE_URL}/trigger-cleaning" \
         --http-method=POST \
-        --headers="Content-Type=application/json,X-Scheduler-Token=${SCHEDULER_TOKEN}" \
-        --message-body='{"dry_run": false}' \
+        --headers="Authorization=Bearer ${SCHEDULER_TOKEN},Content-Type=application/json" \
         --description="$DESCRIPTION"
 
     echo -e "${GREEN}✓ 作业创建成功${NC}"
