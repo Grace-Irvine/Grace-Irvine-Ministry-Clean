@@ -1,6 +1,6 @@
 # Grace Irvine Ministry Data Management System
 
-> **Language / 语言**: [English](README.md) | [中文](docs/README_CH.md)
+> **Language / 语言**: [English](README.md) | [中文](README_CH.md)
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.118+-green.svg)](https://fastapi.tiangolo.com/)
@@ -187,7 +187,7 @@ python mcp/mcp_server.py
 - 9 tools for data operations
 - 22+ resources for data access
 
-👉 **See**: [MCP Server Documentation](mcp/README.md) | [MCP Architecture](docs/MCP_DESIGN.md)
+👉 **See**: [MCP Server Documentation](mcp/README.md)
 
 ---
 
@@ -210,7 +210,7 @@ python core/clean_pipeline.py --config config/config.json --dry-run
 python core/clean_pipeline.py --config config/config.json
 ```
 
-👉 **See**: [Quick Start Guide](docs/QUICKSTART.md)
+👉 **See**: Quick Start section above
 
 ---
 
@@ -241,33 +241,15 @@ export GCP_PROJECT_ID=your-project-id
 - **Automatic Token Management**: All scripts automatically read tokens from Secret Manager
 - **Unified Configuration**: No hardcoded tokens, all managed through Secret Manager
 
-👉 **See**: [Cloud Deployment Guide](docs/DEPLOYMENT.md)
+👉 **See**: Cloud Deployment section below
 
 ---
 
-## 📚 Documentation
+## 📚 Additional Resources
 
-### Core Documentation
-
-- [📖 Architecture Overview](docs/ARCHITECTURE.md) - System design and components
-- [📝 API Endpoints](docs/API_ENDPOINTS.md) - Complete REST API reference
-- [📦 Service Layer Design](docs/SERVICE_LAYER.md) - Domain model transformation
-- [📋 Schema Management](docs/SCHEMA_MANAGEMENT.md) - Dynamic column mapping
-
-### AI Integration (MCP)
-
-- [🤖 MCP Server Guide](mcp/README.md) - Complete MCP usage guide
-- [🏗️ MCP Design Document](docs/MCP_DESIGN.md) - Detailed architecture
-- [☁️ MCP Cloud Deployment](docs/MCP_DEPLOYMENT.md) - Cloud Run setup
-- [🔍 MCP Inspector Guide](docs/MCP_INSPECTOR.md) - Debugging tool
-
-### Deployment & Operations
-
-- [☁️ Cloud Deployment](docs/DEPLOYMENT.md) - Cloud Run + Scheduler setup
-- [💾 Storage Management](docs/STORAGE.md) - Google Cloud Storage configuration
-- [🔐 Secret Management](docs/SECRET_MANAGEMENT.md) - Secret Manager best practices
-- [📋 Secrets Inventory](docs/SECRETS_INVENTORY.md) - Complete secrets list and operations
-- [🔧 Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
+- **MCP Server Guide**: See `mcp/README.md` for complete MCP usage guide
+- **API Documentation**: Interactive API docs available at `/docs` endpoint when running locally
+- **Deployment Scripts**: See `deploy/` directory for deployment automation
 
 ---
 
@@ -442,15 +424,6 @@ Grace-Irvine-Ministry-Clean/
 │   ├── env.example              # Environment variables
 │   └── service-account.json     # GCP service account
 │
-├── docs/                        # 📚 Documentation
-│   ├── ARCHITECTURE.md          # System architecture
-│   ├── API_ENDPOINTS.md         # API reference
-│   ├── MCP_DESIGN.md            # MCP architecture
-│   ├── MCP_DEPLOYMENT.md        # MCP cloud deployment
-│   ├── SERVICE_LAYER.md         # Service layer design
-│   ├── DEPLOYMENT.md            # Cloud deployment
-│   └── TROUBLESHOOTING.md       # Common issues
-│
 ├── tests/                       # 🧪 Tests
 │   ├── test_cleaning.py         # Unit tests
 │   ├── sample_raw.csv           # Sample raw data
@@ -601,7 +574,6 @@ Unit tests cover:
 - 4 secrets managed: `mcp-bearer-token`, `api-scheduler-token`, `weekly-preview-scheduler-token`, `weekly-preview-smtp-password`
 - Automatic token rotation support
 - **Unified Token Management**: Scheduler jobs and services use the same tokens from Secret Manager, automatically synchronized
-- See [Secret Management Guide](docs/SECRET_MANAGEMENT.md) and [Secrets Inventory](docs/SECRETS_INVENTORY.md)
 
 ### Authentication
 
@@ -668,7 +640,6 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) file for 
 
 ## 📞 Support
 
-- **Documentation**: [docs/](docs/)
 - **Issues**: [GitHub Issues](https://github.com/yourusername/Grace-Irvine-Ministry-Clean/issues)
 - **Email**: jonathanjing@graceirvine.org
 
