@@ -61,6 +61,8 @@ class CleaningPipeline:
         'sunday_child_assistant_3_id', 'sunday_child_assistant_3_name', 'sunday_child_assistant_3_department',
         'newcomer_reception_1_id', 'newcomer_reception_1_name', 'newcomer_reception_1_department',
         'newcomer_reception_2_id', 'newcomer_reception_2_name', 'newcomer_reception_2_department',
+        'friday_meal_id', 'friday_meal_name', 'friday_meal_department',
+        'prayer_lead_id', 'prayer_lead_name', 'prayer_lead_department',
         'notes', 'source_row', 'updated_at'
     ]
     
@@ -372,6 +374,27 @@ class CleaningPipeline:
         cleaned['newcomer_reception_2_id'] = newcomer_reception_2_id
         cleaned['newcomer_reception_2_name'] = newcomer_reception_2_display
         cleaned['newcomer_reception_2_department'] = self.schema_manager.get_department('newcomer_reception_2') or ''
+                
+        # 饭食组
+        meal_group_name = self.cleaning_rules.clean_name(row.get('meal_group'))
+        meal_group_id, meal_group_display = self.alias_mapper.resolve(meal_group_name)
+        cleaned['meal_group_id'] = meal_group_id
+        cleaned['meal_group_name'] = meal_group_display
+        cleaned['meal_group_department'] = self.schema_manager.get_department('meal_group') or ''
+        
+        # 周五饭食
+        friday_meal_name = self.cleaning_rules.clean_name(row.get('friday_meal'))
+        friday_meal_id, friday_meal_display = self.alias_mapper.resolve(friday_meal_name)
+        cleaned['friday_meal_id'] = friday_meal_id
+        cleaned['friday_meal_name'] = friday_meal_display
+        cleaned['friday_meal_department'] = self.schema_manager.get_department('friday_meal') or ''
+        
+        # 祷告会带领
+        prayer_lead_name = self.cleaning_rules.clean_name(row.get('prayer_lead'))
+        prayer_lead_id, prayer_lead_display = self.alias_mapper.resolve(prayer_lead_name)
+        cleaned['prayer_lead_id'] = prayer_lead_id
+        cleaned['prayer_lead_name'] = prayer_lead_display
+        cleaned['prayer_lead_department'] = self.schema_manager.get_department('prayer_lead') or ''
         
         # 备注
         cleaned['notes'] = self.cleaning_rules.clean_text(row.get('notes', ''))
@@ -417,7 +440,8 @@ class CleaningPipeline:
                 'preacher', 'reading', 'worship_lead', 'worship_team_1', 'worship_team_2',
                 'pianist', 'audio', 'video', 'propresenter_play', 'propresenter_update',
                 'video_editor', 'friday_child_ministry', 'sunday_child_assistant_1', 'sunday_child_assistant_2', 'sunday_child_assistant_3',
-                'newcomer_reception_1', 'newcomer_reception_2'
+                'newcomer_reception_1', 'newcomer_reception_2',
+                'meal_group', 'friday_meal', 'prayer_lead'
             ])
             
             # 1. 从清洗后的数据中提取所有人名及其出现次数

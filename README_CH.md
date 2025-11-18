@@ -80,10 +80,11 @@ Grace-Irvine-Ministry-Clean/
 
 - 日期标准化（多种格式 → YYYY-MM-DD）
 - 文本清理（去除空格、处理占位符）
-- 别名映射（多个名字 → 统一的 person_id）
+- 别名映射（多个名字 → 统一的 person_id）- *v4.3.0 优化匹配准确性*
 - 歌曲拆分（支持多种分隔符）
 - 经文格式化（在书名和章节之间添加空格）
 - 列合并（worship_team_1 + worship_team_2 → worship_team 列表）
+- **新增部门**：饭食组（Meal Group）和祷告部（Prayer Department）
 - 数据验证（必填字段、重复项、格式检查）
 
 **输出**：29 字段标准化架构，写入 Google Sheets "CleanData" 表

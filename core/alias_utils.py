@@ -275,19 +275,19 @@ class AliasMapper:
             logger.info(f"读取到 {len(existing_df)} 条现有记录")
         except Exception as e:
             logger.warning(f"读取现有数据失败: {e}，将创建新表")
-            existing_df = pd.DataFrame(columns=['alias', 'person_id', 'display_name', 'count'])
+            existing_df = pd.DataFrame(columns=['alias', 'person_id', 'display_name'])
         
         # 确保列名标准化
         if not existing_df.empty:
             col_mapping = {}
             for col in existing_df.columns:
                 col_lower = col.lower()
-                if col_lower in ['alias', 'person_id', 'display_name', 'count']:
+                if col_lower in ['alias', 'person_id', 'display_name']:
                     col_mapping[col] = col_lower
             existing_df = existing_df.rename(columns=col_mapping)
         
         # 确保必需列存在
-        for col in ['alias', 'person_id', 'display_name', 'count']:
+        for col in ['alias', 'person_id', 'display_name']:
             if col not in existing_df.columns:
                 existing_df[col] = ''
         
@@ -302,16 +302,7 @@ class AliasMapper:
         # 3. 区分新名字和已存在的名字
         new_names, existing_names = self.detect_new_and_existing(names_counter)
         
-        # 4. 更新已存在名字的统计
-        updated_count = 0
-        for name, count in existing_names:
-            normalized = self._normalize_for_matching(name)
-            if normalized in alias_to_idx:
-                idx = alias_to_idx[normalized]
-                existing_df.at[idx, 'count'] = count
-                updated_count += 1
-        
-        # 5. 添加新名字
+        # 4. 添加新名字
         new_rows = []
         for name, count in new_names:
             normalized = self._normalize_for_matching(name)
@@ -319,8 +310,7 @@ class AliasMapper:
             new_row = {
                 'alias': name,
                 'person_id': person_id,
-                'display_name': name,
-                'count': count
+                'display_name': name
             }
             new_rows.append(new_row)
         
@@ -328,21 +318,20 @@ class AliasMapper:
             new_df = pd.DataFrame(new_rows)
             existing_df = pd.concat([existing_df, new_df], ignore_index=True)
         
-        # 6. 写回 Google Sheets
+        # 5. 写回 Google Sheets
         try:
             # 确保列顺序
-            final_df = existing_df[['alias', 'person_id', 'display_name', 'count']]
+            final_df = existing_df[['alias', 'person_id', 'display_name']]
             
             # 写入（包含表头）
             client.write_range(url, range_name.split('!')[0] + '!A1', final_df, include_header=True)
             
             logger.info(f"✅ 成功同步到 Google Sheets")
             logger.info(f"   新增: {len(new_rows)} 个名字")
-            logger.info(f"   更新: {updated_count} 个名字的统计")
             
             return {
                 'new_added': len(new_rows),
-                'updated': updated_count
+                'updated': 0
             }
         except Exception as e:
             logger.error(f"❌ 写入 Google Sheets 失败: {e}")
