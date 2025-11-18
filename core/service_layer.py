@@ -291,6 +291,22 @@ class VolunteerDomainTransformer(DomainTransformer):
                     'name': str(row.get('newcomer_reception_2_name', ''))
                 }
             },
+            # 饭食部
+            'meal': {
+                'department': str(row.get('friday_meal_department', '')),
+                'friday_meal': {
+                    'id': str(row.get('friday_meal_id', '')),
+                    'name': str(row.get('friday_meal_name', ''))
+                }
+            },
+            # 祷告部
+            'prayer': {
+                'department': str(row.get('prayer_lead_department', '')),
+                'prayer_lead': {
+                    'id': str(row.get('prayer_lead_id', '')),
+                    'name': str(row.get('prayer_lead_name', ''))
+                }
+            },
             'source_row': int(row.get('source_row', 0)) if pd.notna(row.get('source_row')) else None,
             'updated_at': str(row.get('updated_at', ''))
         }

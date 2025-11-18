@@ -23,6 +23,33 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
+# Check for required dependencies before importing
+try:
+    import mcp
+except ImportError:
+    bundle_dir = Path(__file__).parent.parent
+    requirements_file = bundle_dir / "requirements.txt"
+    error_msg = f"""
+╔════════════════════════════════════════════════════════════════╗
+║  ERROR: Missing required dependencies                          ║
+╚════════════════════════════════════════════════════════════════╝
+
+The 'mcp' module is not installed. Please install dependencies:
+
+1. Navigate to the bundle directory:
+   {bundle_dir}
+
+2. Install dependencies:
+   pip install -r requirements.txt
+
+Or install globally:
+   pip install mcp>=1.16.0
+
+For more information, see the bundle description in manifest.json.
+"""
+    print(error_msg, file=sys.stderr)
+    sys.exit(1)
+
 # MCP SDK imports (import before adding project root to avoid naming conflict)
 import mcp.server.models
 import mcp.server
@@ -271,7 +298,7 @@ def get_role_display_name(role: str) -> str:
         # 技术相关
         'audio': '音控',
         'video': '导播/摄影',
-        'propresenter_play': 'ProPresenter播放',
+        'propresenter_play': 'ProPresenter播放+场地布置',
         'propresenter_update': 'ProPresenter更新',
         'video_editor': '视频剪辑',
         
@@ -286,6 +313,12 @@ def get_role_display_name(role: str) -> str:
         'newcomer_reception': '新人接待',  # 通用，不带数字
         'newcomer_reception_1': '新人接待1',
         'newcomer_reception_2': '新人接待2',
+        
+        # 饭食部相关
+        'friday_meal': '周五饭食预备',
+        
+        # 祷告部相关
+        'prayer_lead': '祷告会带领',
         
         # 其他可能的历史字段
         'team': '同工',
@@ -2244,93 +2277,195 @@ async def handle_call_tool(
             day_volunteers = [v for v in volunteers if v.get("service_date", "").startswith(date)]
             day_sermons = [s for s in sermons if s.get("service_date", "").startswith(date)]
             
-            # 生成预览
-            text_lines = [f"📅 主日预览 - {date}\n"]
+            # 生成预览 - 使用新格式
+            text_lines = []
+            
+            # 根据日期计算周数，用于选择问候语和结束语（7个循环）
+            try:
+                date_obj = datetime.strptime(date, "%Y-%m-%d")
+                # 使用ISO周数，对7取模得到0-6的索引
+                week_index = (date_obj.isocalendar()[1] - 1) % 7
+            except Exception:
+                # 如果日期解析失败，使用默认值
+                week_index = 0
+            
+            # 7个不同的问候语
+            greetings = [
+                "同工们平安，以下是本周的服侍安排，愿主亲自坚固每一位同工的手，也预备我们共同参与的事奉。",
+                "亲爱的同工们，主内平安！以下是本周的服侍安排，愿主加添我们力量，使我们在服侍中经历祂的恩典。",
+                "同工们好，以下是本周的服侍安排，愿主使用我们每一个人，让我们的服侍成为他人的祝福。",
+                "主内平安，同工们！以下是本周的服侍安排，愿主在我们中间作工，使我们的服侍蒙祂悦纳。",
+                "亲爱的同工们，以下是本周的服侍安排，愿主赐给我们智慧和能力，让我们在服侍中荣耀祂的名。",
+                "同工们平安，以下是本周的服侍安排，愿主与我们同在，使我们的服侍充满祂的爱和恩典。",
+                "主内平安！以下是本周的服侍安排，愿主使用我们的服侍，让更多人认识祂、经历祂的恩典。"
+            ]
+            
+            # 7个不同的结束语
+            closings = [
+                "请大家为以上所有参与本周服侍的同工代祷，愿主赐下同心合一的灵，使每项事工都成为祝福。",
+                "请为本周所有服侍的同工代祷，愿主保守我们的心，使我们在服侍中彼此相爱、互相扶持。",
+                "请大家为本周服侍的同工们代祷，愿主使用我们的服侍，让更多人得着福音的恩典。",
+                "请为以上所有同工代祷，愿主加添我们力量，使我们在服侍中经历祂的恩典和祝福。",
+                "请大家为本周服侍的同工代祷，愿主在我们中间作工，使我们的服侍成为他人的祝福。",
+                "请为所有参与本周服侍的同工代祷，愿主赐给我们智慧和能力，使每项事工都蒙祂悦纳。",
+                "请大家为本周服侍的同工们代祷，愿主与我们同在，使我们的服侍充满祂的爱和恩典。"
+            ]
+            
+            # 问候语
+            text_lines.append(greetings[week_index])
+            text_lines.append("")
             
             # 证道信息
+            text_lines.append("📖 证道信息")
             if day_sermons:
                 sermon = day_sermons[0]
-                text_lines.append("📖 证道信息:")
-                text_lines.append(f"  • 讲员: {sermon.get('preacher', {}).get('name', '待定')}")
+                preacher_name = sermon.get('preacher', {}).get('name', '待定')
+                text_lines.append(f"\t•讲员：{preacher_name}")
+                
                 reading = sermon.get('reading', {})
                 reading_name = reading.get('name', '').strip() if reading else ''
                 role_display = get_role_display_name('reading')
-                text_lines.append(f"  • {role_display}: {reading_name if reading_name else '待定'}")
-                text_lines.append(f"  • 题目: {sermon.get('sermon', {}).get('title', '待定')}")
-                text_lines.append(f"  • 系列: {sermon.get('sermon', {}).get('series', '待定')}")
-                text_lines.append(f"  • 经文: {sermon.get('sermon', {}).get('scripture', '待定')}")
+                text_lines.append(f"\t•{role_display}：{reading_name if reading_name else '待定'}")
             else:
-                text_lines.append("📖 证道信息: 待定")
+                text_lines.append("\t•讲员：待定")
+                text_lines.append("\t•读经：待定")
+            text_lines.append("")
             
-            # 同工安排 - 统一处理所有团队
+            # 同工安排
             if day_volunteers:
                 volunteer = day_volunteers[0]
-                text_lines.append("\n👥 同工安排:")
 
                 # 敬拜团队
                 worship = volunteer.get('worship', {})
-                text_lines.append("  🎵 敬拜团队:")
-
+                text_lines.append("🎵 敬拜团队")
+                
                 lead = worship.get('lead', {})
                 role_display = get_role_display_name('worship_lead')
                 lead_name = lead.get('name', '').strip() if lead else ''
-                text_lines.append(f"    • {role_display}: {lead_name if lead_name else '待定'}")
+                text_lines.append(f"\t•{role_display}：{lead_name if lead_name else '待定'}")
 
                 team = worship.get('team', [])
                 names = [m.get('name', '').strip() for m in team if m.get('name', '').strip()]
                 role_display = get_role_display_name('worship_team')
-                text_lines.append(f"    • {role_display}: {', '.join(names) if names else '待定'}")
+                text_lines.append(f"\t•{role_display}：{', '.join(names) if names else '待定'}")
 
                 pianist = worship.get('pianist', {})
                 role_display = get_role_display_name('pianist')
                 pianist_name = pianist.get('name', '').strip() if pianist else ''
-                text_lines.append(f"    • {role_display}: {pianist_name if pianist_name else '待定'}")
+                text_lines.append(f"\t•{role_display}：{pianist_name if pianist_name else '待定'}")
+                text_lines.append("")
 
                 # 媒体团队
                 technical = volunteer.get('technical', {})
-                text_lines.append("  📺 媒体团队:")
+                text_lines.append("🎬 媒体团队")
 
-                # 定义媒体团队的所有岗位（按顺序）
-                tech_roles = ['audio', 'video', 'propresenter_play', 'propresenter_update', 'video_editor']
-                for tech_role in tech_roles:
-                    person = technical.get(tech_role, {})
-                    role_display_name = get_role_display_name(tech_role)
-                    person_name = person.get('name', '').strip() if person else ''
-                    text_lines.append(f"    • {role_display_name}: {person_name if person_name else '待定'}")
+                # 音控
+                audio = technical.get('audio', {})
+                audio_name = audio.get('name', '').strip() if audio else ''
+                role_display = get_role_display_name('audio')
+                text_lines.append(f"\t•{role_display}：{audio_name if audio_name else '待定'}")
+
+                # 导播/摄影
+                video = technical.get('video', {})
+                video_name = video.get('name', '').strip() if video else ''
+                role_display = get_role_display_name('video')
+                text_lines.append(f"\t•{role_display}：{video_name if video_name else '待定'}")
+
+                # ProPresenter 播放+场地布置
+                propresenter_play = technical.get('propresenter_play', {})
+                propresenter_play_name = propresenter_play.get('name', '').strip() if propresenter_play else ''
+                role_display = get_role_display_name('propresenter_play')
+                text_lines.append(f"\t•{role_display}：{propresenter_play_name if propresenter_play_name else '待定'}")
+
+                # ProPresenter 更新
+                propresenter_update = technical.get('propresenter_update', {})
+                propresenter_update_name = propresenter_update.get('name', '').strip() if propresenter_update else ''
+                role_display = get_role_display_name('propresenter_update')
+                text_lines.append(f"\t•{role_display}：{propresenter_update_name if propresenter_update_name else '待定'}")
+
+                # 视频剪辑
+                video_editor = technical.get('video_editor', {})
+                video_editor_name = video_editor.get('name', '').strip() if video_editor else ''
+                role_display = get_role_display_name('video_editor')
+                text_lines.append(f"\t•{role_display}：{video_editor_name if video_editor_name else '待定'}")
+                text_lines.append("")
 
                 # 儿童事工
                 education = volunteer.get('education', {})
-                text_lines.append("  👶 儿童事工:")
+                text_lines.append("👧 儿童事工")
 
-                # 周五儿童事工
+                # 周五老师
                 friday_ministry = education.get('friday_child_ministry', {})
                 role_display = get_role_display_name('friday_child_ministry')
-                friday_name = friday_ministry.get('name', '').strip() if friday_ministry else ''
-                text_lines.append(f"    • {role_display}: {friday_name if friday_name else '待定'}")
+                # 确保正确读取字段，如果为空字典则尝试从 education 直接读取
+                if not friday_ministry or (isinstance(friday_ministry, dict) and not friday_ministry.get('name')):
+                    # 尝试备用字段名
+                    friday_name = education.get('friday_child_ministry_name', '').strip() if isinstance(education, dict) else ''
+                else:
+                    friday_name = friday_ministry.get('name', '').strip() if isinstance(friday_ministry, dict) else ''
+                text_lines.append(f"\t•{role_display}：{friday_name if friday_name else '待定'}")
 
                 # 周日助教
                 sunday_assistants = education.get('sunday_child_assistants', [])
                 assistant_names = [a.get('name', '').strip() for a in sunday_assistants if a.get('name', '').strip()]
                 role_display = get_role_display_name('sunday_child_assistant')
-                text_lines.append(f"    • {role_display}: {', '.join(assistant_names) if assistant_names else '待定'}")
+                text_lines.append(f"\t•{role_display}：{', '.join(assistant_names) if assistant_names else '待定'}")
+                text_lines.append("")
 
                 # 外展联络
                 outreach = volunteer.get('outreach', {})
-                text_lines.append("  🤝 外展联络:")
+                text_lines.append("🤝 外展联络")
 
-                # 新人接待1
+                # 新人接待（将多个名字放在一行，用逗号连接）
                 newcomer_reception_1 = outreach.get('newcomer_reception_1', {})
-                role_display = get_role_display_name('newcomer_reception_1')
                 newcomer_name_1 = newcomer_reception_1.get('name', '').strip() if newcomer_reception_1 else ''
-                text_lines.append(f"    • {role_display}: {newcomer_name_1 if newcomer_name_1 else '待定'}")
-
-                # 新人接待2
+                
                 newcomer_reception_2 = outreach.get('newcomer_reception_2', {})
-                role_display = get_role_display_name('newcomer_reception_2')
                 newcomer_name_2 = newcomer_reception_2.get('name', '').strip() if newcomer_reception_2 else ''
-                text_lines.append(f"    • {role_display}: {newcomer_name_2 if newcomer_name_2 else '待定'}")
+                
+                # 收集所有非空的名字
+                newcomer_names = []
+                if newcomer_name_1:
+                    newcomer_names.append(newcomer_name_1)
+                if newcomer_name_2:
+                    newcomer_names.append(newcomer_name_2)
+                
+                role_display = get_role_display_name('newcomer_reception')
+                text_lines.append(f"\t•{role_display}：{', '.join(newcomer_names) if newcomer_names else '待定'}")
+                text_lines.append("")
+
+                # 饭食预备
+                meal = volunteer.get('meal', {})
+                friday_meal = meal.get('friday_meal', {}) if meal else {}
+                # 确保正确读取字段，如果为空字典则尝试从 meal 直接读取
+                if not friday_meal or (isinstance(friday_meal, dict) and not friday_meal.get('name')):
+                    # 尝试备用字段名
+                    friday_meal_name = meal.get('friday_meal_name', '').strip() if isinstance(meal, dict) else ''
+                else:
+                    friday_meal_name = friday_meal.get('name', '').strip() if isinstance(friday_meal, dict) else ''
+                text_lines.append(f"🍽️ 饭食预备：{friday_meal_name if friday_meal_name else '待定'}")
+                text_lines.append("")
+
+                # 祷告会带领
+                prayer = volunteer.get('prayer', {})
+                prayer_lead = prayer.get('prayer_lead', {}) if prayer else {}
+                # 确保正确读取字段，如果为空字典则尝试从 prayer 直接读取
+                if not prayer_lead or (isinstance(prayer_lead, dict) and not prayer_lead.get('name')):
+                    # 尝试备用字段名
+                    prayer_lead_name = prayer.get('prayer_lead_name', '').strip() if isinstance(prayer, dict) else ''
+                else:
+                    prayer_lead_name = prayer_lead.get('name', '').strip() if isinstance(prayer_lead, dict) else ''
+                # 如果名称看起来是英文名（只包含英文字母和空格），尝试通过别名映射转换为中文名
+                # 注意：这里假设别名映射已经在数据清洗时完成，如果还是英文名，说明别名映射可能有问题
+                role_display = get_role_display_name('prayer_lead')
+                text_lines.append(f"🙏 {role_display}：{prayer_lead_name if prayer_lead_name else '待定'}")
+                text_lines.append("")
             else:
-                text_lines.append("\n👥 同工安排: 待定")
+                text_lines.append("👥 同工安排: 待定")
+                text_lines.append("")
+            
+            # 结束语
+            text_lines.append(closings[week_index])
             
             return [types.TextContent(
                 type="text",
@@ -2380,12 +2515,6 @@ async def handle_list_resources() -> list[types.Resource]:
             mimeType="application/json"
         ),
         types.Resource(
-            uri="ministry://sermon/by-preacher/{preacher_name}",
-            name="sermon-by-preacher",
-            description="按讲员查询证道记录",
-            mimeType="application/json"
-        ),
-        types.Resource(
             uri="ministry://sermon/series",
             name="sermon-series",
             description="讲道系列信息和进度",
@@ -2398,76 +2527,9 @@ async def handle_list_resources() -> list[types.Resource]:
             mimeType="application/json"
         ),
         types.Resource(
-            uri="ministry://volunteer/by-person/{person_id}",
-            name="volunteer-by-person",
-            description="查询某人的所有服侍记录",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://volunteer/availability/{year_month}",
-            name="volunteer-availability",
-            description="查询某时间范围内的空缺岗位",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://stats/summary",
-            name="ministry-stats",
-            description="教会主日事工数据的综合统计信息",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://stats/preachers",
-            name="preacher-stats",
-            description="讲员统计（讲道次数、涉及经文等）",
-            mimeType="application/json"
-        ),
-        types.Resource(
             uri="ministry://stats/volunteers",
             name="volunteer-stats",
             description="同工统计（服侍次数、岗位分布等）",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://config/aliases",
-            name="alias-mappings",
-            description="人员别名映射表",
-            mimeType="application/json"
-        ),
-        # ========== 历史分析类资源 ==========
-        types.Resource(
-            uri="ministry://history/volunteer-frequency",
-            name="volunteer-frequency-history",
-            description="同工服侍频率历史分析",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://history/volunteer-trends",
-            name="volunteer-trends-history",
-            description="同工参与度趋势变化",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://history/preacher-frequency",
-            name="preacher-frequency-history",
-            description="讲员讲道频率历史分析",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://history/series-progression",
-            name="series-progression-history",
-            description="讲道系列进展历史",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://history/role-participation",
-            name="role-participation-history",
-            description="岗位参与度历史分析",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://history/workload-distribution",
-            name="workload-distribution-history",
-            description="服侍负担分布历史",
             mimeType="application/json"
         ),
         # ========== 当前周状态类资源 ==========
@@ -2477,65 +2539,11 @@ async def handle_list_resources() -> list[types.Resource]:
             description="本周/下周全景概览",
             mimeType="application/json"
         ),
-        types.Resource(
-            uri="ministry://current/next-sunday",
-            name="current-next-sunday",
-            description="自动计算的下个主日安排（智能日期）",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://current/volunteer-status",
-            name="current-volunteer-status",
-            description="当前所有同工的状态快照",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://current/conflicts",
-            name="current-conflicts",
-            description="当前排班冲突检测",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://current/vacancy-alerts",
-            name="current-vacancy-alerts",
-            description="当前和近期空缺预警",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://current/person-availability/{person_id}",
-            name="current-person-availability",
-            description="个人可用性详情（含元数据）",
-            mimeType="application/json"
-        ),
         # ========== 未来规划类资源 ==========
         types.Resource(
             uri="ministry://future/upcoming-services",
             name="future-upcoming-services",
             description="未来服侍日程表（含完整度）",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://future/series-planning",
-            name="future-series-planning",
-            description="讲道系列规划与进度",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://future/volunteer-needs",
-            name="future-volunteer-needs",
-            description="未来人力需求预测",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://future/scheduling-suggestions",
-            name="future-scheduling-suggestions",
-            description="智能排班建议",
-            mimeType="application/json"
-        ),
-        types.Resource(
-            uri="ministry://future/preacher-rotation",
-            name="future-preacher-rotation",
-            description="讲员轮换规划",
             mimeType="application/json"
         )
     ]

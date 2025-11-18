@@ -78,3 +78,5 @@ config/env.example
 temp/
 tmp/
 
+# Ensure requirements.txt is included (explicitly allow it)
+!requirements.txt
