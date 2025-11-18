@@ -84,121 +84,120 @@ def clean_alias_table(start_row: int = 406, config_path: str = "config/config.js
         raise ValueError(f"未找到 display_name 列。现有列: {list(df.columns)}")
     
     # 6. 修复指定行范围的数据
-    updated_count = 0
-    changes = []
+    # 6. 修复和去重
+    # 策略：
+    # 1. 读取所有数据
+    # 2. 对每一行进行清洗（alias 和 display_name 都清洗）
+    # 3. 使用 alias 作为 key 进行去重
+    # 4. 对于重复的 alias，保留信息最全的（display_name 更合理的）
     
-    for idx in range(start_idx, len(df)):
-        alias_value = str(df.at[idx, 'alias']) if pd.notna(df.at[idx, 'alias']) else ''
-        display_name_value = str(df.at[idx, 'display_name']) if pd.notna(df.at[idx, 'display_name']) else ''
+    logger.info("开始处理数据...")
+    
+    # 用于存储处理后的数据
+    # key: cleaned_alias (normalized)
+    # value: row_data
+    processed_data = {}
+    
+    # 记录原始行数
+    original_count = len(df)
+    
+    for idx, row in df.iterrows():
+        # 获取原始值
+        raw_alias = str(row.get('alias', '')).strip()
+        raw_display = str(row.get('display_name', '')).strip()
+        person_id = str(row.get('person_id', '')).strip()
         
-        # 检查是否需要修复
-        # 情况1: alias 已经被清洗了（不包含日期），但 display_name 包含日期
-        #        需要交换它们
-        alias_has_date = any(c in alias_value for c in '/-') and any(c.isdigit() for c in alias_value)
-        display_has_date = any(c in display_name_value for c in '/-') and any(c.isdigit() for c in display_name_value)
-        
-        # 判断逻辑：
-        # 如果 display_name 包含日期，说明数据可能反了
-        # 或者需要从某个值清洗后生成 display_name
-        
+        # 如果 alias 为空，跳过
+        if not raw_alias:
+            continue
+            
+        # 清洗 alias 和 display_name
         # 策略：
-        # 1. 如果 display_name 包含日期，而 alias 不包含，说明数据反了，需要交换
-        # 2. 如果两者都包含日期，选择较长的作为 alias（原始数据）
-        # 3. 如果两者都不包含日期，检查哪个更可能包含日期（通过长度或格式）
-        # 4. 无论如何，最终 display_name 应该是清洗后的（不含日期）
+        # 1. alias 列保持相对原始（只去除日期和多余空格），保留括号和数字，以便 pipeline 能匹配到
+        # 2. display_name 列进行激进清洗（去除括号、数字等），作为最终显示
         
-        # 清洗后的名称（应该放入 display_name）
-        cleaned_display = cleaning_rules.clean_name(display_name_value)
-        cleaned_alias = cleaning_rules.clean_name(alias_value)
+        # alias 使用基础清洗（保留括号等）
+        cleaned_alias = cleaning_rules.clean_name(raw_alias)
         
-        # 确定哪个是原始数据（可能包含日期）
-        if display_has_date and not alias_has_date:
-            # display_name 包含日期，alias 不包含 -> 数据反了
-            original_data = display_name_value
-            should_be_display = cleaned_alias
-            logger.info(f"第 {idx + 2} 行: 检测到数据反了，交换 alias 和 display_name")
-            needs_swap = True
-        elif alias_has_date and not display_has_date:
-            # alias 包含日期，display_name 不包含 -> 正确
-            original_data = alias_value
-            should_be_display = cleaned_alias
-            needs_swap = False
-        elif display_has_date and alias_has_date:
-            # 两者都包含日期，选择较长的作为原始数据
-            if len(display_name_value) >= len(alias_value):
-                original_data = display_name_value
-                should_be_display = cleaned_display
-                needs_swap = True
-            else:
-                original_data = alias_value
-                should_be_display = cleaned_alias
-                needs_swap = False
+        # display_name 使用激进清洗
+        # 如果 raw_display 为空，则从 raw_alias 生成
+        source_for_display = raw_display if raw_display else raw_alias
+        cleaned_display = cleaning_rules.clean_display_name(source_for_display)
+        
+        # 如果清洗后为空，跳过
+        if not cleaned_alias:
+            continue
+            
+        # 如果 display_name 仍为空（例如全是特殊字符），回退到 alias
+        if not cleaned_display:
+            cleaned_display = cleaned_alias
+            
+        # 标准化用于去重 key
+        key = cleaned_alias.lower()
+        
+        # 构建新行数据
+        new_row = {
+            'alias': cleaned_alias,
+            'person_id': person_id,
+            'display_name': cleaned_display
+        }
+        
+        # 检查是否已存在
+        if key in processed_data:
+            existing = processed_data[key]
+            
+            # 合并逻辑
+            # 1. 如果现有 person_id 为空或自动生成的，而新的有明确 ID，更新 ID
+            # (这里简化处理，优先保留现有的，除非现有的是空的)
+            if not existing['person_id'] and new_row['person_id']:
+                existing['person_id'] = new_row['person_id']
+                
+            # 2. display_name 优先使用更长的（通常更完整）
+            # 但如果现在的 display_name 已经是清洗过的，可能都差不多
+            if len(new_row['display_name']) > len(existing['display_name']):
+                existing['display_name'] = new_row['display_name']
+                
+            logger.info(f"合并重复项: {cleaned_alias}")
         else:
-            # 两者都不包含日期，检查哪个更像原始数据
-            # 如果 display_name 是清洗后的，alias 应该是原始数据
-            # 但由于两者都已经被清洗，我们无法确定原始数据
-            # 这种情况下，我们假设 alias 是原始数据，display_name 应该从 alias 清洗
-            original_data = alias_value if alias_value else display_name_value
-            should_be_display = cleaned_alias if alias_value else cleaned_display
-            needs_swap = False
-        
-        # 如果清洗后的值不等于当前值，或者需要交换，则更新
-        new_alias = original_data
-        new_display = should_be_display
-        
-        if needs_swap or (alias_value != new_alias) or (display_name_value != new_display):
-            old_alias = alias_value
-            old_display = display_name_value
+            processed_data[key] = new_row
             
-            df.at[idx, 'alias'] = new_alias
-            df.at[idx, 'display_name'] = new_display
-            
-            updated_count += 1
-            changes.append({
-                'row': idx + 2,  # +2 因为索引从0开始且有表头
-                'old_alias': old_alias,
-                'new_alias': new_alias,
-                'old_display': old_display,
-                'new_display': new_display
-            })
-            logger.info(f"第 {idx + 2} 行:")
-            logger.info(f"  alias: '{old_alias}' -> '{new_alias}'")
-            logger.info(f"  display_name: '{old_display}' -> '{new_display}'")
+    # 转换为 DataFrame
+    new_rows = list(processed_data.values())
+    new_df = pd.DataFrame(new_rows)
     
-    # 7. 如果有更新，写回 Google Sheets
-    if updated_count > 0:
-        logger.info(f"共更新 {updated_count} 行数据")
-        logger.info("开始写入 Google Sheets...")
-        
-        # 获取 sheet 名称
-        sheet_name = alias_config['range'].split('!')[0]
-        
-        # 写入数据（包含表头）
-        client.write_range(
-            alias_config['url'],
-            f"{sheet_name}!A1",
-            df,
-            include_header=True
-        )
-        
-        logger.info("✅ 成功更新 alias 表")
-        
-        # 显示部分更改摘要
-        if len(changes) <= 10:
-            logger.info("\n所有更改:")
-            for change in changes:
-                logger.info(f"  第 {change['row']} 行:")
-                logger.info(f"    alias: '{change['old_alias']}' -> '{change['new_alias']}'")
-                logger.info(f"    display_name: '{change['old_display']}' -> '{change['new_display']}'")
-        else:
-            logger.info(f"\n前 10 个更改:")
-            for change in changes[:10]:
-                logger.info(f"  第 {change['row']} 行:")
-                logger.info(f"    alias: '{change['old_alias']}' -> '{change['new_alias']}'")
-                logger.info(f"    display_name: '{change['old_display']}' -> '{change['new_display']}'")
-            logger.info(f"  ... 还有 {len(changes) - 10} 个更改")
-    else:
-        logger.info("没有需要更新的数据")
+    # 确保列顺序
+    cols = ['alias', 'person_id', 'display_name']
+    for col in cols:
+        if col not in new_df.columns:
+            new_df[col] = ''
+    new_df = new_df[cols]
+    
+    logger.info(f"处理完成: 原始 {original_count} 行 -> 清洗后 {len(new_df)} 行")
+    logger.info(f"减少了 {original_count - len(new_df)} 行重复/无效数据")
+    
+    # 7. 写回 Google Sheets
+    # 总是全量更新，因为我们做了去重和重组
+    logger.info("开始写入 Google Sheets...")
+    
+    # 获取 sheet 名称
+    sheet_name = alias_config['range'].split('!')[0]
+    
+    # 清空原表（或者覆盖写入）
+    # 建议先清空，防止残留数据
+    try:
+        client.clear_range(alias_config['url'], f"{sheet_name}!A1:Z")
+    except Exception as e:
+        logger.warning(f"清空范围失败: {e}")
+    
+    # 写入数据（包含表头）
+    client.write_range(
+        alias_config['url'],
+        f"{sheet_name}!A1",
+        new_df,
+        include_header=True
+    )
+    
+    logger.info("✅ 成功更新 alias 表")
 
 
 def main():

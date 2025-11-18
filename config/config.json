@@ -1,31 +1,65 @@
 {
   "source_sheet": {
     "url": "https://docs.google.com/spreadsheets/d/1wescUQe9rIVLNcKdqmSLpzlAw9BGXMZmkFvjEF296nM/edit#gid=0",
-    "range": "总表!A1:AB",
+    "range": "总表!A1:AE",
     "header_rows": 2,
     "department_row": 1,
     "column_row": 2
   },
   "departments": {
     "sermon": {
-      "name": "讲道",
-      "roles": ["preacher", "reading"]
+      "name": "主日证道",
+      "roles": [
+        "preacher",
+        "reading"
+      ]
     },
     "worship": {
       "name": "敬拜部",
-      "roles": ["worship_lead", "worship_team_1", "worship_team_2", "pianist"]
+      "roles": [
+        "worship_lead",
+        "worship_team_1",
+        "worship_team_2",
+        "pianist"
+      ]
     },
     "technical": {
       "name": "媒体部",
-      "roles": ["audio", "video", "propresenter_play", "propresenter_update", "video_editor"]
+      "roles": [
+        "audio",
+        "video",
+        "propresenter_play",
+        "propresenter_update",
+        "video_editor"
+      ]
     },
     "education": {
       "name": "儿童部",
-      "roles": ["friday_child_ministry", "sunday_child_assistant_1", "sunday_child_assistant_2", "sunday_child_assistant_3"]
+      "roles": [
+        "friday_child_ministry",
+        "sunday_child_assistant_1",
+        "sunday_child_assistant_2",
+        "sunday_child_assistant_3"
+      ]
     },
     "outreach": {
-      "name": "外展联络",
-      "roles": ["newcomer_reception_1", "newcomer_reception_2"]
+      "name": "外展联络部",
+      "roles": [
+        "newcomer_reception_1",
+        "newcomer_reception_2"
+      ]
+    },
+    "meal": {
+      "name": "饭食部",
+      "roles": [
+        "friday_meal"
+      ]
+    },
+    "prayer": {
+      "name": "祷告部",
+      "roles": [
+        "prayer_lead"
+      ]
     }
   },
   "schema_validation": {
@@ -60,7 +94,9 @@
     "sunday_child_assistant_2": "周日助教2",
     "sunday_child_assistant_3": "周日助教3",
     "newcomer_reception_1": "新人接待1",
-    "newcomer_reception_2": "新人接待2"
+    "newcomer_reception_2": "新人接待2",
+    "friday_meal": "周五饭食预备",
+    "prayer_lead": "祷告会带领"
   },
   "cleaning_rules": {
     "date_format": "YYYY-MM-DD",
@@ -68,16 +104,11 @@
     "trim_fullwidth_spaces": true,
     "capitalize_names": true,
     "normalize_scripture": true,
-    "split_songs_delimiters": ["、", ",", "/", "|"],
-    "role_whitelist": [
-      "敬拜带领",
-      "敬拜同工",
-      "司琴",
-      "音控",
-      "导播/摄影",
-      "ProPresenter播放",
-      "ProPresenter更新",
-      "助教"
+    "split_songs_delimiters": [
+      "、",
+      ",",
+      "/",
+      "|"
     ]
   },
   "alias_sources": {
@@ -104,7 +135,9 @@
       "sunday_child_assistant_2",
       "sunday_child_assistant_3",
       "newcomer_reception_1",
-      "newcomer_reception_2"
+      "newcomer_reception_2",
+      "friday_meal",
+      "prayer_lead"
     ]
   },
   "volunteer_metadata_sheet": {
@@ -121,7 +154,10 @@
   },
   "service_layer": {
     "enabled": true,
-    "domains": ["sermon", "volunteer"],
+    "domains": [
+      "sermon",
+      "volunteer"
+    ],
     "local_output_dir": "logs/service_layer",
     "storage": {
       "provider": "gcs",
@@ -138,4 +174,3 @@
     }
   }
 }
-

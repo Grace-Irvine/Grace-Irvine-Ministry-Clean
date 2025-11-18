@@ -236,18 +236,34 @@ class CleaningRules:
             r'\s+\d{4}[/-]\d{1,2}[/-]\d{1,2}$',  # 末尾位置的完整日期
         ]
         
-        for pattern in date_patterns:
-            name_str = re.sub(pattern, ' ', name_str)
-        
         # 再次清理文本（去除多余空格）
         name_str = self.clean_text(name_str)
         
-        # 去除常见的职位后缀（如果配置允许）
-        if self.config.get('capitalize_names', True):
-            # 保持原样，不强制大写（中文名不需要）
-            pass
-        
         return name_str
+    
+    def clean_display_name(self, name: Any) -> str:
+        """
+        清理显示名称（更激进的清理，去除括号、数字等）
+        
+        Args:
+            name: 原始名称
+            
+        Returns:
+            清理后的显示名称
+        """
+        # 先进行基础清理（去除日期等）
+        name_str = self.clean_name(name)
+        
+        # 去除括号及其内容（英文和中文括号）
+        # 例如：(Wei)阳光 -> 阳光, (明)靖 -> 靖
+        name_str = re.sub(r'\s*\([^\)]+\)\s*', '', name_str)
+        name_str = re.sub(r'\s*（[^）]+）\s*', '', name_str)
+        
+        # 去除末尾的数字（通常表示重复）
+        # 例如：靖铮 5 -> 靖铮, 周工9 -> 周工
+        name_str = re.sub(r'\s*\d+$', '', name_str)
+        
+        return name_str.strip()
     
     @staticmethod
     def validate_not_empty(value: Any, field_name: str) -> None:

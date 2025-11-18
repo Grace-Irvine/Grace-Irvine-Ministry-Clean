@@ -80,10 +80,11 @@ Both services can run **independently** while sharing the `core/` business logic
 
 - Date normalization (multiple formats → YYYY-MM-DD)
 - Text cleaning (strip spaces, handle placeholders)
-- Alias mapping (multiple names → unified person_id)
+- Alias mapping (multiple names → unified person_id) - *Refined in v4.3.0 for better accuracy*
 - Song splitting (multiple delimiters)
 - Scripture formatting (add space between book and chapter)
 - Column merging (worship_team_1 + worship_team_2 → worship_team list)
+- **New Departments**: Meal Group (饭食组) and Prayer Department (祷告部)
 - Data validation (required fields, duplicates, format checks)
 
 **Output**: 29-field standardized schema written to Google Sheets "CleanData" tab
