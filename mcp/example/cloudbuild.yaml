@@ -19,30 +19,30 @@ steps:
 
   # 部署到 Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: gcloud
+    entrypoint: bash
     args:
-      - 'run'
-      - 'deploy'
-      - 'weekly-preview-scheduler'
-      - '--image'
-      - 'gcr.io/$PROJECT_ID/weekly-preview-scheduler:latest'
-      - '--region'
-      - 'us-central1'
-      - '--platform'
-      - 'managed'
-      - '--allow-unauthenticated'
-      - '--port'
-      - '8080'
-      - '--memory'
-      - '512Mi'
-      - '--cpu'
-      - '1'
-      - '--timeout'
-      - '300'
-      - '--max-instances'
-      - '1'
-      - '--set-env-vars'
-      - 'MCP_SERVER_URL=${_MCP_SERVER_URL},MCP_BEARER_TOKEN=${_MCP_BEARER_TOKEN},SMTP_SERVER=${_SMTP_SERVER},SMTP_PORT=${_SMTP_PORT},SMTP_USER=${_SMTP_USER},SMTP_PASSWORD=${_SMTP_PASSWORD},EMAIL_FROM=${_EMAIL_FROM},EMAIL_TO=${_EMAIL_TO},SCHEDULER_TOKEN=${_SCHEDULER_TOKEN}'
+      - '-c'
+      - |
+        # 构建环境变量字符串
+        ENV_VARS="MCP_SERVER_URL=${_MCP_SERVER_URL},MCP_BEARER_TOKEN=${_MCP_BEARER_TOKEN},SMTP_SERVER=${_SMTP_SERVER},SMTP_PORT=${_SMTP_PORT},SMTP_USER=${_SMTP_USER},SMTP_PASSWORD=${_SMTP_PASSWORD},EMAIL_FROM=${_EMAIL_FROM},EMAIL_TO=${_EMAIL_TO},SCHEDULER_TOKEN=${_SCHEDULER_TOKEN}"
+        
+        # 如果 EMAIL_CC 存在且不为空，添加到环境变量
+        if [ -n "${_EMAIL_CC}" ]; then
+          ENV_VARS="$ENV_VARS,EMAIL_CC=${_EMAIL_CC}"
+        fi
+        
+        # 部署到 Cloud Run
+        gcloud run deploy weekly-preview-scheduler \
+          --image gcr.io/$PROJECT_ID/weekly-preview-scheduler:latest \
+          --region us-central1 \
+          --platform managed \
+          --allow-unauthenticated \
+          --port 8080 \
+          --memory 512Mi \
+          --cpu 1 \
+          --timeout 300 \
+          --max-instances 1 \
+          --set-env-vars "$ENV_VARS"
     id: 'deploy-cloud-run'
 
 images:

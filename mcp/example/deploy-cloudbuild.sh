@@ -38,6 +38,9 @@ echo -e "${GREEN}配置信息:${NC}"
 echo "  MCP Server: $MCP_SERVER_URL"
 echo "  发件人: $EMAIL_FROM"
 echo "  收件人: $EMAIL_TO"
+if [ -n "$EMAIL_CC" ]; then
+  echo "  抄送: $EMAIL_CC"
+fi
 echo "  Scheduler Token: ${SCHEDULER_TOKEN:0:20}..."
 echo ""
 
@@ -55,10 +58,13 @@ fi
 echo -e "${GREEN}提交到 Cloud Build...${NC}"
 cd "$PROJECT_ROOT"
 
+# 构建 substitutions 字符串（EMAIL_CC 可选，如果不存在则传递空字符串）
+SUBSTITUTIONS="_MCP_SERVER_URL=$MCP_SERVER_URL,_MCP_BEARER_TOKEN=$MCP_BEARER_TOKEN,_SMTP_SERVER=$SMTP_SERVER,_SMTP_PORT=$SMTP_PORT,_SMTP_USER=$SMTP_USER,_SMTP_PASSWORD=$SMTP_PASSWORD,_EMAIL_FROM=$EMAIL_FROM,_EMAIL_TO=$EMAIL_TO,_EMAIL_CC=${EMAIL_CC:-},_SCHEDULER_TOKEN=$SCHEDULER_TOKEN"
+
 # 使用 Cloud Build 构建和部署
 gcloud builds submit \
   --config=mcp/example/cloudbuild.yaml \
-  --substitutions=_MCP_SERVER_URL="$MCP_SERVER_URL",_MCP_BEARER_TOKEN="$MCP_BEARER_TOKEN",_SMTP_SERVER="$SMTP_SERVER",_SMTP_PORT="$SMTP_PORT",_SMTP_USER="$SMTP_USER",_SMTP_PASSWORD="$SMTP_PASSWORD",_EMAIL_FROM="$EMAIL_FROM",_EMAIL_TO="$EMAIL_TO",_SCHEDULER_TOKEN="$SCHEDULER_TOKEN"
+  --substitutions="$SUBSTITUTIONS"
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}部署完成！${NC}"
