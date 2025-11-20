@@ -156,7 +156,8 @@
     "enabled": true,
     "domains": [
       "sermon",
-      "volunteer"
+      "volunteer",
+      "worship"
     ],
     "local_output_dir": "logs/service_layer",
     "storage": {

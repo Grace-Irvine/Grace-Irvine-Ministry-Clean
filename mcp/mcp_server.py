@@ -1248,7 +1248,7 @@ async def handle_list_tools() -> list[types.Tool]:
                     },
                     "domain": {
                         "type": "string",
-                        "enum": ["volunteer", "sermon", "both"],
+                        "enum": ["volunteer", "sermon", "worship", "both"],
                         "description": "查询的域",
                         "default": "both"
                     }
@@ -1874,7 +1874,7 @@ async def handle_call_tool(
             )]
         
         elif name == "sync_from_gcs":
-            domains = arguments.get("domains", ["sermon", "volunteer"])
+            domains = arguments.get("domains", ["sermon", "volunteer", "worship"])
             versions = arguments.get("versions", ["latest"])
             
             if not GCS_CLIENT:
@@ -1974,7 +1974,7 @@ async def handle_call_tool(
         
         elif name == "generate_service_layer":
             # 生成服务层数据
-            domains = arguments.get("domains", ["sermon", "volunteer"])
+            domains = arguments.get("domains", ["sermon", "volunteer", "worship"])
             generate_all_years = arguments.get("generate_all_years", True)
             upload_to_bucket = arguments.get("upload_to_bucket", False)
             
@@ -2524,6 +2524,12 @@ async def handle_list_resources() -> list[types.Resource]:
             uri="ministry://volunteer/assignments",
             name="volunteer-assignments",
             description="同工服侍安排（敬拜同工、技术同工等）",
+            mimeType="application/json"
+        ),
+        types.Resource(
+            uri="ministry://worship/plans",
+            name="worship-plans",
+            description="敬拜计划（敬拜带领、团队、歌曲、司琴等）",
             mimeType="application/json"
         ),
         types.Resource(
