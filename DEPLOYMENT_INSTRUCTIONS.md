@@ -15,11 +15,12 @@ The MCP server has been updated with **proper SSE (Server-Sent Events) transport
 
 ### Key Changes
 
-1. **New SSE Endpoint**: `POST /sse`
+1. **New SSE Endpoint**: `GET /sse`
    - Replaces old `/mcp` endpoint
    - Proper Server-Sent Events streaming
    - Bearer token authentication
    - Full MCP protocol support
+   - Accepts JSON-RPC messages via `message` query parameter (URL encoded)
 
 2. **Removed Endpoints**:
    - `/mcp` (POST) - No longer needed
@@ -97,10 +98,8 @@ Expected response:
 ```bash
 curl -N \
   -H "Authorization: Bearer c577d598601f7b8f01c02053f6db89081321fd3d27fc0cabb5deec1647dbfe42" \
-  -H "Content-Type: application/json" \
   -H "Accept: text/event-stream" \
-  -X POST https://ministry-data-mcp-760303847302.us-central1.run.app/sse \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
+  "https://ministry-data-mcp-760303847302.us-central1.run.app/sse?message=%7B%22jsonrpc%22%3A%222.0%22%2C%22id%22%3A1%2C%22method%22%3A%22initialize%22%2C%22params%22%3A%7B%7D%7D"
 ```
 
 Expected response (SSE format):
@@ -114,10 +113,8 @@ data: {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabili
 ```bash
 curl -N \
   -H "Authorization: Bearer c577d598601f7b8f01c02053f6db89081321fd3d27fc0cabb5deec1647dbfe42" \
-  -H "Content-Type: application/json" \
   -H "Accept: text/event-stream" \
-  -X POST https://ministry-data-mcp-760303847302.us-central1.run.app/sse \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+  "https://ministry-data-mcp-760303847302.us-central1.run.app/sse?message=%7B%22jsonrpc%22%3A%222.0%22%2C%22id%22%3A2%2C%22method%22%3A%22tools%2Flist%22%2C%22params%22%3A%7B%7D%7D"
 ```
 
 Expected response should include 11 tools.
