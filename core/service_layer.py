@@ -317,8 +317,9 @@ class VolunteerDomainTransformer(DomainTransformer):
 class WorshipDomainTransformer(DomainTransformer):
     """敬拜域转换器"""
     
-    def __init__(self):
+    def __init__(self, alias_mapper=None):
         super().__init__("worship", "1.0")
+        self.alias_mapper = alias_mapper
     
     def transform(self, clean_df: pd.DataFrame, exclude_ids: bool = False) -> Dict[str, Any]:
         """
@@ -368,6 +369,13 @@ class WorshipDomainTransformer(DomainTransformer):
         def _p(pid, pname):
             if not pname or pname == 'None' or pd.isna(pname):
                 return None
+            
+            # 如果配置了 alias_mapper，尝试重新解析名字以获取最新的 display_name
+            if self.alias_mapper:
+                _, new_display = self.alias_mapper.resolve(pname)
+                if new_display:
+                    pname = new_display
+
             if exclude_ids:
                 return {'name': pname}
             return {'id': pid if pid and pid != 'None' else '', 'name': pname}
@@ -474,12 +482,17 @@ class WorshipDomainTransformer(DomainTransformer):
 class ServiceLayerManager:
     """服务层管理器"""
     
-    def __init__(self):
-        """初始化服务层管理器"""
+    def __init__(self, alias_mapper=None):
+        """
+        初始化服务层管理器
+        
+        Args:
+            alias_mapper: 别名映射器（可选，用于在转换时再次校准人名）
+        """
         self.transformers = {
             'sermon': SermonDomainTransformer(),
             'volunteer': VolunteerDomainTransformer(),
-            'worship': WorshipDomainTransformer()
+            'worship': WorshipDomainTransformer(alias_mapper)
         }
     
     def generate_domain_data(
