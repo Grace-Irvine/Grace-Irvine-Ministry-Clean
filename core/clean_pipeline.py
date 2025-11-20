@@ -554,7 +554,7 @@ class CleaningPipeline:
         manager = ServiceLayerManager()
         
         # 获取配置
-        domains = service_layer_config.get('domains', ['sermon', 'volunteer'])
+        domains = service_layer_config.get('domains', ['sermon', 'volunteer', 'worship'])
         output_dir = Path(service_layer_config.get('local_output_dir', 'logs/service_layer'))
         
         # 生成所有年份的数据
@@ -597,7 +597,7 @@ class CleaningPipeline:
                 
                 # 所有年度文件上传完成后，统一同步 latest.json
                 logger.info("开始同步 latest.json...")
-                for domain in ['sermon', 'volunteer']:
+                for domain in ['sermon', 'volunteer', 'worship']:
                     try:
                         storage_manager._sync_latest_from_yearly(domain)
                         logger.info(f"✅ 已同步 {domain}/latest.json")

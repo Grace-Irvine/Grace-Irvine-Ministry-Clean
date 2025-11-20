@@ -363,8 +363,13 @@ class DomainStorageManager:
             all_records = []
             all_metadata = {}
 
-            # 确定正确的记录字段名（volunteers 或 sermons）
-            record_field_name = f"{domain_name}s" if domain_name == "volunteer" else "sermons"
+            # 确定正确的记录字段名
+            if domain_name == "volunteer":
+                record_field_name = "volunteers"
+            elif domain_name == "worship":
+                record_field_name = "services"
+            else:
+                record_field_name = "sermons"
 
             for file_path in yearly_files:
                 try:
@@ -403,6 +408,9 @@ class DomainStorageManager:
                 record_field_name: all_records  # 使用 'volunteers' 或 'sermons'
             }
             
+            # 移除 ID 字段 (latest 不需要 ID)
+            merged_data = self._remove_ids_recursively(merged_data)
+            
             # 4. 上传合并后的 latest.json
             latest_path = f"{domain_name}/latest.json"
             self.gcs_client.upload_json(merged_data, latest_path)
@@ -411,6 +419,23 @@ class DomainStorageManager:
             
         except Exception as e:
             logger.error(f"❌ 同步 {domain_name}/latest.json 失败: {e}")
+            
+    def _remove_ids_recursively(self, data: Any) -> Any:
+        """
+        递归移除数据中的 id 字段
+        
+        Args:
+            data: 输入数据（字典、列表或值）
+            
+        Returns:
+            移除 id 后的数据
+        """
+        if isinstance(data, dict):
+            return {k: self._remove_ids_recursively(v) for k, v in data.items() if k != 'id'}
+        elif isinstance(data, list):
+            return [self._remove_ids_recursively(item) for item in data]
+        else:
+            return data
     
     
     def download_domain_data(
@@ -466,7 +491,7 @@ def main():
         type=str,
         help='上传本地 JSON 文件（sermon 或 volunteer 域）'
     )
-    parser.add_argument('--domain', type=str, choices=['sermon', 'volunteer'], help='领域名称')
+    parser.add_argument('--domain', type=str, choices=['sermon', 'volunteer', 'worship'], help='领域名称')
     parser.add_argument('--list', action='store_true', help='列出所有文件')
     
     args = parser.parse_args()
@@ -503,7 +528,7 @@ def main():
     
     # 列出文件
     elif args.list:
-        for domain in ['sermon', 'volunteer']:
+        for domain in ['sermon', 'volunteer', 'worship']:
             print(f"\n{domain.upper()} 域文件:")
             files = manager.list_domain_files(domain)
             for file in files:

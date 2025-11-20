@@ -609,7 +609,7 @@ async def generate_service_layer(request: ServiceLayerRequest):
         manager = ServiceLayerManager()
         
         # 确定要生成的域
-        domains = request.domains or ['sermon', 'volunteer']
+        domains = request.domains or ['sermon', 'volunteer', 'worship']
         
         # 输出目录
         output_dir = Path('logs/service_layer')
