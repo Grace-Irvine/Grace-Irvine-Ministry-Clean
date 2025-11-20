@@ -172,6 +172,9 @@ class CleaningPipeline:
         # 1. 列名映射
         df = self._map_columns(raw_df)
         
+        # 1.5 处理重复列（合并）
+        df = self._merge_duplicate_columns(df)
+        
         # 2. 应用清洗规则
         cleaned_rows = []
         for idx, row in tqdm(df.iterrows(), total=len(df), desc="清洗数据"):
@@ -213,6 +216,38 @@ class CleaningPipeline:
         df = df.rename(columns=reverse_mapping)
         
         return df
+
+    def _merge_duplicate_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        合并重复的列名（优先取非空值）
+        """
+        if not df.columns.duplicated().any():
+            return df
+            
+        logger.info("发现重复列名，开始合并...")
+        unique_cols = df.columns.unique()
+        
+        new_data = {}
+        
+        for col in unique_cols:
+            col_data = df[col]
+            if isinstance(col_data, pd.DataFrame):
+                logger.info(f"合并重复列: {col}")
+                # 将空字符串替换为 None
+                temp = col_data.copy()
+                # 使用 regex 替换空字符串或空白字符为 None
+                temp = temp.replace(r'^\s*$', None, regex=True)
+                
+                # 使用 bfill(axis=1) 填充
+                combined = temp.bfill(axis=1).iloc[:, 0]
+                
+                # 填充回空字符串
+                combined = combined.fillna('')
+                new_data[col] = combined
+            else:
+                new_data[col] = col_data
+                
+        return pd.DataFrame(new_data)
     
     def _clean_row(
         self, 
@@ -702,4 +737,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
