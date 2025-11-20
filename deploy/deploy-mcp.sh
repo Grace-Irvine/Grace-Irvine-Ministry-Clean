@@ -226,27 +226,37 @@ Authentication: Bearer Token
 Token: ${MCP_BEARER_TOKEN}
 EOF
 
-    echo -e "\n${YELLOW}2. For curl testing (initialize):${NC}"
+    echo -e "\n${YELLOW}2. For curl testing (standard MCP SSE protocol):${NC}"
     cat <<EOF
 
+# Step 1: Establish SSE connection (GET /sse)
 curl -N \\
   -H "Authorization: Bearer ${MCP_BEARER_TOKEN}" \\
-  -H "Content-Type: application/json" \\
   -H "Accept: text/event-stream" \\
-  -X POST "${SERVICE_URL}/sse" \\
-  -d '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}'
-EOF
+  "${SERVICE_URL}/sse" &
+SSE_PID=\$!
 
-    echo -e "\n${YELLOW}3. For curl testing (list tools):${NC}"
-    cat <<EOF
-
-curl -N \\
+# Step 2: Send initialize message (POST /sse)
+sleep 1
+curl -X POST \\
   -H "Authorization: Bearer ${MCP_BEARER_TOKEN}" \\
   -H "Content-Type: application/json" \\
-  -H "Accept: text/event-stream" \\
-  -X POST "${SERVICE_URL}/sse" \\
-  -d '{"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \\
+  "${SERVICE_URL}/sse"
+
+# Step 3: Send list tools message
+curl -X POST \\
+  -H "Authorization: Bearer ${MCP_BEARER_TOKEN}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \\
+  "${SERVICE_URL}/sse"
+
+# Cleanup
+kill \$SSE_PID 2>/dev/null || true
 EOF
+
+    echo -e "\n${YELLOW}3. Note: Standard MCP clients (e.g., @modelcontextprotocol/sdk)${NC}"
+    echo "   will automatically handle GET/POST SSE protocol."
 
     echo -e "\n${YELLOW}4. Save your Bearer Token securely:${NC}"
     echo "   Token: ${MCP_BEARER_TOKEN}"

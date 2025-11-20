@@ -54,6 +54,16 @@ For more information, see the bundle description in manifest.json.
 import mcp.server.models
 import mcp.server
 import mcp.server.stdio
+try:
+    from mcp.server.sse import SseServerTransport
+except ImportError:
+    import sys
+    # Fallback handling for shadowing: if local mcp folder shadows the library,
+    # we might need to mess with sys.path or just fail.
+    # Since we verified it works when avoiding local path, let's assume
+    # we can handle it or the user environment is set up correctly.
+    # For now, we'll re-raise to see the error if it happens.
+    raise
 import mcp.types as types
 from mcp.server.models import InitializationOptions
 from mcp.server import NotificationOptions, Server
@@ -71,8 +81,6 @@ import uvicorn
 # 添加项目根目录到 Python 路径 (for core/ imports)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Import SSE transport (after path is set)
-from sse_transport import handle_sse_session
 
 # 配置日志
 logging.basicConfig(
@@ -644,6 +652,9 @@ app = FastAPI(
     version="2.0.0"
 )
 
+# Initialize SSE transport
+sse = SseServerTransport("/sse")
+
 # CORS 配置
 app.add_middleware(
     CORSMiddleware,
@@ -684,18 +695,7 @@ async def health_check():
     }
 
 
-@app.post("/sse")
-async def sse_endpoint(
-    request: Request,
-    authorization: Optional[str] = Header(None)
-):
-    """
-    MCP SSE endpoint for OpenAI integration
-    
-    Accepts MCP JSON-RPC messages via POST and streams responses via SSE.
-    Requires Bearer token authentication if MCP_REQUIRE_AUTH=true.
-    """
-    # Verify bearer token
+async def verify_auth(authorization: Optional[str] = Header(None)):
     if REQUIRE_AUTH:
         if not authorization:
             raise HTTPException(status_code=401, detail="Missing authorization header")
@@ -707,19 +707,15 @@ async def sse_endpoint(
         
         if BEARER_TOKEN and token != BEARER_TOKEN:
             raise HTTPException(status_code=401, detail="Invalid bearer token")
-    
-    # Create handlers dict for SSE transport
-    handlers = {
-        "list_tools": handle_list_tools,
-        "call_tool": handle_call_tool,
-        "list_resources": handle_list_resources,
-        "read_resource": handle_read_resource,
-        "list_prompts": handle_list_prompts,
-        "get_prompt": handle_get_prompt
-    }
-    
-    # Handle SSE session
-    return await handle_sse_session(server, request, handlers)
+
+@app.get("/sse")
+async def handle_sse(request: Request, auth: None = Depends(verify_auth)):
+    async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
+        await server.run(streams[0], streams[1], server.create_initialization_options())
+
+@app.post("/sse")
+async def handle_post(request: Request, auth: None = Depends(verify_auth)):
+    await sse.handle_post_message(request.scope, request.receive, request._send)
 
 
 # ============================================================
