@@ -111,6 +111,8 @@ Both services can run **independently** while sharing the `core/` business logic
      "songs": ["Amazing Grace", "Assurance"]
    }
    ```
+   *(Note: When IDs are excluded, objects like `preacher` are flattened to simple strings if they only contain a name)*
+
 2. **Volunteer Domain** - Volunteer assignments by role
 
    ```json

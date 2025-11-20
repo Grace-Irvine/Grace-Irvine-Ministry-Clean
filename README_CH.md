@@ -111,6 +111,8 @@ Grace-Irvine-Ministry-Clean/
      "songs": ["奇异恩典", "确据"]
    }
    ```
+   *（注：当排除 ID 时，如果对象仅包含名字，将自动扁平化为简单字符串）*
+
 2. **同工域（Volunteer Domain）** - 按角色分类的同工分配
 
    ```json

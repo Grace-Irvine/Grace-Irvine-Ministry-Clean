@@ -550,8 +550,8 @@ class CleaningPipeline:
         
         logger.info("开始生成服务层数据（所有年份）...")
         
-        # 初始化服务层管理器
-        manager = ServiceLayerManager()
+        # 初始化服务层管理器（传入 alias_mapper 以确保 generated json 使用最新别名）
+        manager = ServiceLayerManager(self.alias_mapper)
         
         # 获取配置
         domains = service_layer_config.get('domains', ['sermon', 'volunteer', 'worship'])

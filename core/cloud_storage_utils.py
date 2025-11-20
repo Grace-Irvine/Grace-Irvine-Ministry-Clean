@@ -423,6 +423,7 @@ class DomainStorageManager:
     def _remove_ids_recursively(self, data: Any) -> Any:
         """
         递归移除数据中的 id 字段
+        如果是只包含 name 的字典，则直接返回 name 的值（扁平化）
         
         Args:
             data: 输入数据（字典、列表或值）
@@ -431,7 +432,15 @@ class DomainStorageManager:
             移除 id 后的数据
         """
         if isinstance(data, dict):
-            return {k: self._remove_ids_recursively(v) for k, v in data.items() if k != 'id'}
+            # 先递归处理所有值
+            new_dict = {k: self._remove_ids_recursively(v) for k, v in data.items() if k != 'id'}
+            
+            # 特殊处理：如果字典只剩下 'name' 一个键，且不是在某些特定字段下（可选），则直接返回 name 值
+            # 这里我们做一个通用的扁平化：如果去除 id 后只剩 name，就直接返回 name
+            if len(new_dict) == 1 and 'name' in new_dict:
+                return new_dict['name']
+                
+            return new_dict
         elif isinstance(data, list):
             return [self._remove_ids_recursively(item) for item in data]
         else:
