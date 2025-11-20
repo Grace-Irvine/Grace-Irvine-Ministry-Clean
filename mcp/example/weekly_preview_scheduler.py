@@ -17,8 +17,9 @@ from typing import Dict, Any, Optional, List
 from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-import requests
 import uvicorn
+from mcp.client.sse import sse_client
+from mcp.client.session import ClientSession
 
 # 尝试从 Secret Manager 读取敏感配置
 try:
@@ -124,11 +125,11 @@ class HealthResponse(BaseModel):
 # MCP 工具调用
 # ============================================================
 
-def call_mcp_tool(
+async def call_mcp_tool(
     tool_name: str,
     arguments: Dict[str, Any],
     timeout: int = 60
-) -> Dict[str, Any]:
+) -> Any:
     """
     调用 MCP Server 的工具
     
@@ -140,83 +141,26 @@ def call_mcp_tool(
     Returns:
         工具调用结果
     """
-    # MCP Server 使用 /sse 端点（不是 /mcp）
+    # MCP Server 使用 /sse 端点
     url = f"{MCP_SERVER_URL}/sse"
-    headers = {
-        "Content-Type": "application/json"
-    }
+    headers = {}
     
     if MCP_BEARER_TOKEN:
         headers["Authorization"] = f"Bearer {MCP_BEARER_TOKEN}"
-    
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "tools/call",
-        "params": {
-            "name": tool_name,
-            "arguments": arguments
-        }
-    }
     
     try:
         logger.info(f"Calling MCP tool: {tool_name} with args: {arguments}")
         logger.info(f"MCP Server URL: {url}")
         
-        response = requests.post(url, headers=headers, json=payload, timeout=timeout)
-        response.raise_for_status()
-        
-        # SSE 端点返回的是 SSE 流格式：data: {json}\n\n
-        # 需要解析 SSE 格式的响应
-        content = response.text
-        logger.info(f"MCP tool response received (first 500 chars): {content[:500]}")
-        
-        # 解析 SSE 格式：提取 data: 后面的 JSON
-        import re
-        
-        # SSE 格式通常是：data: {json}\n\n 或 data: {json}
-        # 提取所有 data: 后面的内容
-        sse_data_matches = re.findall(r'^data:\s*({.*?})(?:\n|$)', content, re.MULTILINE | re.DOTALL)
-        
-        if sse_data_matches:
-            # 使用最后一个匹配（通常是最新的响应）
-            json_str = sse_data_matches[-1]
-            try:
-                result = json.loads(json_str)
-                logger.info(f"Parsed SSE response successfully")
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse JSON from SSE: {e}")
-                logger.error(f"JSON string: {json_str[:200]}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to parse MCP response: {str(e)}"
-                )
-        else:
-            # 如果没有找到 SSE 格式，尝试直接解析 JSON
-            try:
-                result = response.json()
-            except (json.JSONDecodeError, ValueError):
-                # 如果也不是 JSON，尝试查找 JSON 对象
-                json_match = re.search(r'\{.*\}', content, re.DOTALL)
-                if json_match:
-                    try:
-                        result = json.loads(json_match.group(0))
-                    except json.JSONDecodeError:
-                        raise HTTPException(
-                            status_code=500,
-                            detail="Failed to parse MCP response: Invalid format"
-                        )
-                else:
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Failed to parse MCP response: Unexpected format: {content[:200]}"
-                    )
-        
-        return result
-    except requests.exceptions.RequestException as e:
+        async with sse_client(url, headers=headers, timeout=timeout) as streams:
+            async with ClientSession(streams[0], streams[1]) as session:
+                await session.initialize()
+                result = await session.call_tool(tool_name, arguments)
+                logger.info(f"MCP tool call successful")
+                return result
+                
+    except Exception as e:
         logger.error(f"Error calling MCP tool: {e}")
-        logger.error(f"Response status: {response.status_code if 'response' in locals() else 'N/A'}")
-        logger.error(f"Response text: {response.text[:500] if 'response' in locals() else 'N/A'}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to call MCP tool: {str(e)}"
@@ -424,46 +368,17 @@ async def trigger_weekly_preview(
         if scheduler_request.year:
             arguments["year"] = scheduler_request.year
         
-        mcp_result = call_mcp_tool("generate_weekly_preview", arguments)
-        
-        # 解析 MCP 响应
-        if "error" in mcp_result:
-            error_msg = mcp_result["error"].get("message", "Unknown error")
-            logger.error(f"MCP tool error: {error_msg}")
-            raise HTTPException(status_code=500, detail=f"MCP tool error: {error_msg}")
+        mcp_result = await call_mcp_tool("generate_weekly_preview", arguments)
         
         # 提取预览文本
-        # MCP SSE 响应格式：{"jsonrpc": "2.0", "id": 1, "result": {"content": [...]}}
-        result_data = mcp_result.get("result", {})
-        
-        # 检查是否有 content 字段（SSE 格式）
-        if isinstance(result_data, dict) and "content" in result_data:
-            content_list = result_data.get("content", [])
-            if isinstance(content_list, list) and len(content_list) > 0:
-                # MCP 返回的是 TextContent 列表
-                text_content = content_list[0]
-                if isinstance(text_content, dict):
-                    preview_text = text_content.get("text", "")
-                    # 如果没有 text 字段，尝试其他字段
-                    if not preview_text and "structuredContent" in text_content:
-                        structured = text_content.get("structuredContent", {})
-                        preview_text = json.dumps(structured, ensure_ascii=False, indent=2)
-                else:
-                    preview_text = str(text_content)
-            else:
-                preview_text = json.dumps(result_data, ensure_ascii=False, indent=2)
-        elif isinstance(result_data, list) and len(result_data) > 0:
-            # 直接是列表格式
-            text_content = result_data[0]
-            if isinstance(text_content, dict):
-                preview_text = text_content.get("text", "")
-            else:
-                preview_text = str(text_content)
-        else:
-            preview_text = json.dumps(result_data, ensure_ascii=False, indent=2)
+        preview_text = ""
+        if hasattr(mcp_result, 'content') and mcp_result.content:
+            for content in mcp_result.content:
+                if content.type == 'text':
+                    preview_text += content.text
         
         if not preview_text:
-            raise HTTPException(status_code=500, detail="Empty preview generated")
+             raise HTTPException(status_code=500, detail="Empty preview generated")
         
         logger.info("Weekly preview generated successfully")
         

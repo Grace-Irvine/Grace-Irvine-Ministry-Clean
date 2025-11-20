@@ -22,6 +22,9 @@ COPY requirements.txt /app/requirements.txt
 # 安装 Python 依赖
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
+# 复制核心模块
+COPY core/ /app/core/
+
 # 复制项目文件
 COPY mcp/example/weekly_preview_scheduler.py /app/weekly_preview_scheduler.py
 

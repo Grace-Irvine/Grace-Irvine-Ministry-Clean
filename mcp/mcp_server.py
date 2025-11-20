@@ -302,8 +302,8 @@ def get_role_display_name(role: str) -> str:
         # 技术相关
         'audio': '音控',
         'video': '导播/摄影',
-        'propresenter_play': 'ProPresenter播放+场地布置',
-        'propresenter_update': 'ProPresenter更新',
+        'propresenter_play': 'ProPresenter 播放+场地布置',
+        'propresenter_update': 'ProPresenter 更新',
         'video_editor': '视频剪辑',
         
         # 儿童部相关
@@ -1302,6 +1302,16 @@ async def handle_call_tool(
                 "请大家为本周服侍的同工们代祷，愿主与我们同在，使我们的服侍充满祂的爱和恩典。"
             ]
             
+            def get_name(obj):
+                """安全获取名称"""
+                if not obj:
+                    return ''
+                if isinstance(obj, str):
+                    return obj.strip()
+                if isinstance(obj, dict):
+                    return obj.get('name', '').strip()
+                return str(obj).strip()
+            
             # 问候语
             text_lines.append(greetings[week_index])
             text_lines.append("")
@@ -1310,11 +1320,10 @@ async def handle_call_tool(
             text_lines.append("📖 证道信息")
             if day_sermons:
                 sermon = day_sermons[0]
-                preacher_name = sermon.get('preacher', {}).get('name', '待定')
+                preacher_name = get_name(sermon.get('preacher')) or '待定'
                 text_lines.append(f"\t•讲员：{preacher_name}")
                 
-                reading = sermon.get('reading', {})
-                reading_name = reading.get('name', '').strip() if reading else ''
+                reading_name = get_name(sermon.get('reading'))
                 role_display = get_role_display_name('reading')
                 text_lines.append(f"\t•{role_display}：{reading_name if reading_name else '待定'}")
             else:
@@ -1330,19 +1339,17 @@ async def handle_call_tool(
                 worship = volunteer.get('worship', {})
                 text_lines.append("🎵 敬拜团队")
                 
-                lead = worship.get('lead', {})
+                lead_name = get_name(worship.get('lead'))
                 role_display = get_role_display_name('worship_lead')
-                lead_name = lead.get('name', '').strip() if lead else ''
                 text_lines.append(f"\t•{role_display}：{lead_name if lead_name else '待定'}")
 
                 team = worship.get('team', [])
-                names = [m.get('name', '').strip() for m in team if m.get('name', '').strip()]
+                names = [get_name(m) for m in team if get_name(m)]
                 role_display = get_role_display_name('worship_team')
-                text_lines.append(f"\t•{role_display}：{', '.join(names) if names else '待定'}")
+                text_lines.append(f"\t•{role_display}：{'、'.join(names) if names else '待定'}")
 
-                pianist = worship.get('pianist', {})
+                pianist_name = get_name(worship.get('pianist'))
                 role_display = get_role_display_name('pianist')
-                pianist_name = pianist.get('name', '').strip() if pianist else ''
                 text_lines.append(f"\t•{role_display}：{pianist_name if pianist_name else '待定'}")
                 text_lines.append("")
 
@@ -1351,32 +1358,27 @@ async def handle_call_tool(
                 text_lines.append("🎬 媒体团队")
 
                 # 音控
-                audio = technical.get('audio', {})
-                audio_name = audio.get('name', '').strip() if audio else ''
+                audio_name = get_name(technical.get('audio'))
                 role_display = get_role_display_name('audio')
                 text_lines.append(f"\t•{role_display}：{audio_name if audio_name else '待定'}")
 
                 # 导播/摄影
-                video = technical.get('video', {})
-                video_name = video.get('name', '').strip() if video else ''
+                video_name = get_name(technical.get('video'))
                 role_display = get_role_display_name('video')
                 text_lines.append(f"\t•{role_display}：{video_name if video_name else '待定'}")
 
                 # ProPresenter 播放+场地布置
-                propresenter_play = technical.get('propresenter_play', {})
-                propresenter_play_name = propresenter_play.get('name', '').strip() if propresenter_play else ''
+                propresenter_play_name = get_name(technical.get('propresenter_play'))
                 role_display = get_role_display_name('propresenter_play')
                 text_lines.append(f"\t•{role_display}：{propresenter_play_name if propresenter_play_name else '待定'}")
 
                 # ProPresenter 更新
-                propresenter_update = technical.get('propresenter_update', {})
-                propresenter_update_name = propresenter_update.get('name', '').strip() if propresenter_update else ''
+                propresenter_update_name = get_name(technical.get('propresenter_update'))
                 role_display = get_role_display_name('propresenter_update')
                 text_lines.append(f"\t•{role_display}：{propresenter_update_name if propresenter_update_name else '待定'}")
 
                 # 视频剪辑
-                video_editor = technical.get('video_editor', {})
-                video_editor_name = video_editor.get('name', '').strip() if video_editor else ''
+                video_editor_name = get_name(technical.get('video_editor'))
                 role_display = get_role_display_name('video_editor')
                 text_lines.append(f"\t•{role_display}：{video_editor_name if video_editor_name else '待定'}")
                 text_lines.append("")
@@ -1386,19 +1388,18 @@ async def handle_call_tool(
                 text_lines.append("👧 儿童事工")
 
                 # 周五老师
-                friday_ministry = education.get('friday_child_ministry', {})
+                friday_ministry = education.get('friday_child_ministry')
+                # 尝试备用字段名 if needed, but get_name handles dict/str
+                friday_name = get_name(friday_ministry)
+                if not friday_name and isinstance(education, dict):
+                     friday_name = education.get('friday_child_ministry_name', '').strip()
+                
                 role_display = get_role_display_name('friday_child_ministry')
-                # 确保正确读取字段，如果为空字典则尝试从 education 直接读取
-                if not friday_ministry or (isinstance(friday_ministry, dict) and not friday_ministry.get('name')):
-                    # 尝试备用字段名
-                    friday_name = education.get('friday_child_ministry_name', '').strip() if isinstance(education, dict) else ''
-                else:
-                    friday_name = friday_ministry.get('name', '').strip() if isinstance(friday_ministry, dict) else ''
                 text_lines.append(f"\t•{role_display}：{friday_name if friday_name else '待定'}")
 
                 # 周日助教
                 sunday_assistants = education.get('sunday_child_assistants', [])
-                assistant_names = [a.get('name', '').strip() for a in sunday_assistants if a.get('name', '').strip()]
+                assistant_names = [get_name(a) for a in sunday_assistants if get_name(a)]
                 role_display = get_role_display_name('sunday_child_assistant')
                 text_lines.append(f"\t•{role_display}：{', '.join(assistant_names) if assistant_names else '待定'}")
                 text_lines.append("")
@@ -1407,47 +1408,42 @@ async def handle_call_tool(
                 outreach = volunteer.get('outreach', {})
                 text_lines.append("🤝 外展联络")
 
-                # 新人接待（将多个名字放在一行，用逗号连接）
-                newcomer_reception_1 = outreach.get('newcomer_reception_1', {})
-                newcomer_name_1 = newcomer_reception_1.get('name', '').strip() if newcomer_reception_1 else ''
-                
-                newcomer_reception_2 = outreach.get('newcomer_reception_2', {})
-                newcomer_name_2 = newcomer_reception_2.get('name', '').strip() if newcomer_reception_2 else ''
-                
-                # 收集所有非空的名字
-                newcomer_names = []
-                if newcomer_name_1:
-                    newcomer_names.append(newcomer_name_1)
-                if newcomer_name_2:
-                    newcomer_names.append(newcomer_name_2)
+                # 新人接待
+                newcomer_name_1 = get_name(outreach.get('newcomer_reception_1'))
+                newcomer_name_2 = get_name(outreach.get('newcomer_reception_2'))
                 
                 role_display = get_role_display_name('newcomer_reception')
-                text_lines.append(f"\t•{role_display}：{', '.join(newcomer_names) if newcomer_names else '待定'}")
+                
+                has_newcomer = False
+                if newcomer_name_1:
+                    text_lines.append(f"\t•{role_display}：{newcomer_name_1}")
+                    has_newcomer = True
+                
+                if newcomer_name_2:
+                    text_lines.append(f"\t•{role_display}：{newcomer_name_2}")
+                    has_newcomer = True
+                    
+                if not has_newcomer:
+                    text_lines.append(f"\t•{role_display}：待定")
                 text_lines.append("")
 
                 # 饭食预备
                 meal = volunteer.get('meal', {})
-                friday_meal = meal.get('friday_meal', {}) if meal else {}
-                # 确保正确读取字段，如果为空字典则尝试从 meal 直接读取
-                if not friday_meal or (isinstance(friday_meal, dict) and not friday_meal.get('name')):
-                    # 尝试备用字段名
-                    friday_meal_name = meal.get('friday_meal_name', '').strip() if isinstance(meal, dict) else ''
-                else:
-                    friday_meal_name = friday_meal.get('name', '').strip() if isinstance(friday_meal, dict) else ''
+                friday_meal = meal.get('friday_meal')
+                friday_meal_name = get_name(friday_meal)
+                if not friday_meal_name and isinstance(meal, dict):
+                    friday_meal_name = meal.get('friday_meal_name', '').strip()
+                    
                 text_lines.append(f"🍽️ 饭食预备：{friday_meal_name if friday_meal_name else '待定'}")
                 text_lines.append("")
 
                 # 祷告会带领
                 prayer = volunteer.get('prayer', {})
-                prayer_lead = prayer.get('prayer_lead', {}) if prayer else {}
-                # 确保正确读取字段，如果为空字典则尝试从 prayer 直接读取
-                if not prayer_lead or (isinstance(prayer_lead, dict) and not prayer_lead.get('name')):
-                    # 尝试备用字段名
-                    prayer_lead_name = prayer.get('prayer_lead_name', '').strip() if isinstance(prayer, dict) else ''
-                else:
-                    prayer_lead_name = prayer_lead.get('name', '').strip() if isinstance(prayer_lead, dict) else ''
-                # 如果名称看起来是英文名（只包含英文字母和空格），尝试通过别名映射转换为中文名
-                # 注意：这里假设别名映射已经在数据清洗时完成，如果还是英文名，说明别名映射可能有问题
+                prayer_lead = prayer.get('prayer_lead')
+                prayer_lead_name = get_name(prayer_lead)
+                if not prayer_lead_name and isinstance(prayer, dict):
+                    prayer_lead_name = prayer.get('prayer_lead_name', '').strip()
+                    
                 role_display = get_role_display_name('prayer_lead')
                 text_lines.append(f"🙏 {role_display}：{prayer_lead_name if prayer_lead_name else '待定'}")
                 text_lines.append("")

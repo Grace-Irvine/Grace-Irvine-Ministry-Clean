@@ -99,8 +99,8 @@
       "merge": true,
       "department": "technical"
     },
-    "propresenter_play": "ProPresenter播放",
-    "propresenter_update": "ProPresenter更新",
+    "propresenter_play": "ProPresenter 播放+场地布置",
+    "propresenter_update": "ProPresenter 更新",
     "video_editor": "视频剪辑",
     "friday_child_ministry": {
       "sources": [
