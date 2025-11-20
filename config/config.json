@@ -83,18 +83,52 @@
     "worship_team_1": "敬拜同工1",
     "worship_team_2": "敬拜同工2",
     "pianist": "司琴",
-    "songs": "詩歌",
+    "songs": {
+      "sources": [
+        "詩歌",
+        "歌单列表"
+      ],
+      "merge": true
+    },
     "audio": "音控",
-    "video": "导播/摄影",
+    "video": {
+      "sources": [
+        "导播/摄影",
+        "导播"
+      ],
+      "merge": true,
+      "department": "technical"
+    },
     "propresenter_play": "ProPresenter播放",
     "propresenter_update": "ProPresenter更新",
     "video_editor": "视频剪辑",
-    "friday_child_ministry": "周五老师",
+    "friday_child_ministry": {
+      "sources": [
+        "周五老师",
+        "周五团契老师"
+      ],
+      "merge": true,
+      "department": "education"
+    },
     "sunday_child_assistant_1": "周日助教1",
     "sunday_child_assistant_2": "周日助教2",
     "sunday_child_assistant_3": "周日助教3",
-    "newcomer_reception_1": "新人接待1",
-    "newcomer_reception_2": "新人接待2",
+    "newcomer_reception_1": {
+      "sources": [
+        "新人接待1",
+        "招待同工1"
+      ],
+      "merge": true,
+      "department": "outreach"
+    },
+    "newcomer_reception_2": {
+      "sources": [
+        "新人接待2",
+        "招待同工2"
+      ],
+      "merge": true,
+      "department": "outreach"
+    },
     "friday_meal": "周五饭食预备",
     "prayer_lead": "祷告会带领"
   },
