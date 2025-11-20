@@ -1,5 +1,5 @@
 #!/bin/bash
-# 使用 Cloud Build 部署每周事工预览定时器服务（无需本地 Docker）
+# 使用 Cloud Build 构建并部署每周事工预览定时器服务
 # 使用方法: ./deploy-cloudbuild.sh
 
 set -e
@@ -33,6 +33,10 @@ if [ -z "$PROJECT_ID" ]; then
   exit 1
 fi
 
+# 设置默认值
+REGION=${REGION:-us-central1}
+SERVICE_NAME=${SERVICE_NAME:-weekly-preview-scheduler}
+
 echo -e "${GREEN}项目 ID: $PROJECT_ID${NC}"
 echo -e "${GREEN}配置信息:${NC}"
 echo "  MCP Server: $MCP_SERVER_URL"
@@ -55,24 +59,45 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
   exit 1
 fi
 
-echo -e "${GREEN}提交到 Cloud Build...${NC}"
+echo -e "${GREEN}提交到 Cloud Build 构建镜像...${NC}"
 cd "$PROJECT_ROOT"
 
-# 构建 substitutions 字符串（EMAIL_CC 可选，如果不存在则传递空字符串）
-SUBSTITUTIONS="_MCP_SERVER_URL=$MCP_SERVER_URL,_MCP_BEARER_TOKEN=$MCP_BEARER_TOKEN,_SMTP_SERVER=$SMTP_SERVER,_SMTP_PORT=$SMTP_PORT,_SMTP_USER=$SMTP_USER,_SMTP_PASSWORD=$SMTP_PASSWORD,_EMAIL_FROM=$EMAIL_FROM,_EMAIL_TO=$EMAIL_TO,_EMAIL_CC=${EMAIL_CC:-},_SCHEDULER_TOKEN=$SCHEDULER_TOKEN"
+IMAGE_TAG="gcr.io/$PROJECT_ID/$SERVICE_NAME:latest"
 
-# 使用 Cloud Build 构建和部署
+# 使用 gcloud builds submit 构建并推送镜像
+# 这不需要本地 Docker daemon
 gcloud builds submit \
-  --config=mcp/example/cloudbuild.yaml \
-  --substitutions="$SUBSTITUTIONS"
+  --config "mcp/example/cloudbuild.yaml" \
+  .
+
+echo -e "${GREEN}部署到 Cloud Run...${NC}"
+
+# 构建环境变量字符串
+ENV_VARS="MCP_SERVER_URL=$MCP_SERVER_URL,MCP_BEARER_TOKEN=$MCP_BEARER_TOKEN,SMTP_SERVER=${SMTP_SERVER:-smtp.gmail.com},SMTP_PORT=${SMTP_PORT:-587},SMTP_USER=$SMTP_USER,SMTP_PASSWORD=$SMTP_PASSWORD,EMAIL_FROM=$EMAIL_FROM,EMAIL_TO=$EMAIL_TO,SCHEDULER_TOKEN=$SCHEDULER_TOKEN"
+
+if [ -n "$EMAIL_CC" ]; then
+  ENV_VARS="$ENV_VARS,EMAIL_CC=$EMAIL_CC"
+fi
+
+gcloud run deploy "$SERVICE_NAME" \
+  --image "$IMAGE_TAG" \
+  --region "$REGION" \
+  --platform managed \
+  --allow-unauthenticated \
+  --port 8080 \
+  --memory 512Mi \
+  --cpu 1 \
+  --timeout 300 \
+  --max-instances 1 \
+  --set-env-vars "$ENV_VARS"
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}部署完成！${NC}"
 echo -e "${GREEN}========================================${NC}"
 
 # 获取服务 URL
-SERVICE_URL=$(gcloud run services describe weekly-preview-scheduler \
-  --region us-central1 \
+SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
+  --region "$REGION" \
   --format 'value(status.url)' 2>/dev/null || echo "")
 
 if [ -n "$SERVICE_URL" ]; then
@@ -85,13 +110,13 @@ if [ -n "$SERVICE_URL" ]; then
   # 创建或更新 Cloud Scheduler 任务
   JOB_NAME="weekly-preview-job"
   JOB_EXISTS=$(gcloud scheduler jobs describe "$JOB_NAME" \
-    --location=us-central1 \
+    --location="$REGION" \
     --format="value(name)" 2>/dev/null || echo "")
   
   if [ -z "$JOB_EXISTS" ]; then
     echo -e "${GREEN}创建 Cloud Scheduler 任务...${NC}"
     gcloud scheduler jobs create http "$JOB_NAME" \
-      --location=us-central1 \
+      --location="$REGION" \
       --schedule="0 9 * * 1" \
       --uri="$SERVICE_URL/trigger" \
       --http-method=POST \
@@ -101,7 +126,7 @@ if [ -n "$SERVICE_URL" ]; then
   else
     echo -e "${GREEN}更新 Cloud Scheduler 任务...${NC}"
     gcloud scheduler jobs update http "$JOB_NAME" \
-      --location=us-central1 \
+      --location="$REGION" \
       --schedule="0 9 * * 1" \
       --uri="$SERVICE_URL/trigger" \
       --http-method=POST \
@@ -115,8 +140,6 @@ if [ -n "$SERVICE_URL" ]; then
   echo "服务 URL: $SERVICE_URL"
   echo "健康检查: $SERVICE_URL/health"
   echo "触发器端点: $SERVICE_URL/trigger"
-  echo ""
-  echo "SCHEDULER_TOKEN: $SCHEDULER_TOKEN"
   echo ""
   echo "测试触发:"
   echo "  curl -X POST \"$SERVICE_URL/trigger\" \\"
