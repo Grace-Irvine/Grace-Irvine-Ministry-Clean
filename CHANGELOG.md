@@ -5,6 +5,35 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [4.4.0] - 2025-12-11
+
+### 🚀 架构升级：FastMCP 2.0 迁移
+
+**全面升级 MCP 服务架构，使用 FastMCP 2.0 简化代码并提升维护性**
+
+#### 核心变更 ✨
+
+##### 1. FastMCP 2.0 迁移
+- ✅ **重构 `mcp/mcp_server.py`**:
+  - 移除原生的 `mcp.server.Server` 和 FastAPI 样板代码
+  - 采用 `fastmcp.FastMCP` 进行简化初始化
+  - 使用装饰器 (`@mcp.tool`, `@mcp.resource`, `@mcp.prompt`) 注册组件
+- ✅ **依赖更新**: 引入 `fastmcp>=2.0.0`
+- ✅ **双模式支持**: 保持 `stdio` (本地) 和 `SSE` (Cloud Run) 双重传输模式
+
+##### 2. 工具功能增强
+- ✅ **`get_volunteer_service_counts` 改进**:
+  - 新增 `role` 参数，支持按特定岗位（如 `worship_lead`, `pianist`）筛选统计
+  - 修复逻辑缺陷：不再笼统统计名字出现次数，而是根据岗位路径精准统计
+  - 提升数据准确性，避免身兼数职导致的统计虚高
+
+##### 3. 代码质量与维护
+- ✅ **代码精简**: 移除大量样板代码，逻辑更清晰
+- ✅ **类型安全**: 利用 Python 类型提示自动生成工具 schema
+- ✅ **Docker 兼容**: 保持现有 Dockerfile 兼容性，平滑升级
+
+---
+
 ## [4.3.1] - 2025-11-20
 
 ### ⚡ 优化：数据结构扁平化与别名二次校准
