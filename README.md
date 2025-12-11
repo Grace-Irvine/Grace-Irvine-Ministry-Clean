@@ -5,6 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.118+-green.svg)](https://fastapi.tiangolo.com/)
 [![MCP](https://img.shields.io/badge/MCP-1.16+-purple.svg)](https://modelcontextprotocol.io/)
+[![FastMCP](https://img.shields.io/badge/FastMCP-2.0+-orange.svg)](https://github.com/modelcontextprotocol/python-sdk)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A complete church ministry data management system featuring intelligent data cleaning, domain model transformation, RESTful API, and **AI Assistant Integration via Model Context Protocol (MCP)**.
@@ -33,12 +34,13 @@ The **Grace Irvine Ministry Data Management System** is a production-ready, AI-n
 1. **Clean and standardize** raw ministry data from Google Sheets
 2. **Transform** flat data into structured domain models (Sermon + Volunteer domains)
 3. **Serve** data via RESTful API endpoints for analytics and applications
-4. **Enable AI integration** through the Model Context Protocol (MCP)
+4. **Enable AI integration** through the Model Context Protocol (MCP) - **Now powered by FastMCP 2.0!**
 5. **Deploy seamlessly** to Google Cloud Run with automated scheduling
 
 ### What Makes This Special?
 
 - **🤖 AI-Native Design**: Built-in MCP server for natural language queries with Claude, ChatGPT, and other AI assistants
+- **⚡ FastMCP 2.0 Integration**: Leveraging the latest MCP SDK for simplified tooling, improved performance, and cleaner architecture
 - **🏗️ Clean Architecture**: 2-layer design (cleaning + service layer) with 80%+ code reuse
 - **☁️ Cloud-Ready**: Containerized microservices, auto-scaling, minimal cost (~$1/month)
 - **⚡ Smart Optimization**: Change detection, parallel processing, incremental updates
@@ -53,7 +55,7 @@ The **Grace Irvine Ministry Data Management System** is a production-ready, AI-n
 ```
 Grace-Irvine-Ministry-Clean/
 ├── api/          # API Service - Data cleaning & REST API (FastAPI)
-├── mcp/          # MCP Service - AI assistant integration (MCP Protocol)
+├── mcp/          # MCP Service - AI assistant integration (FastMCP 2.0)
 ├── core/         # Shared business logic (80%+ code reuse)
 ├── deploy/       # Deployment scripts
 └── config/       # Configuration files
@@ -64,7 +66,7 @@ Grace-Irvine-Ministry-Clean/
 | Service               | Purpose                                            | Tech Stack        | Port | Deployment |
 | --------------------- | -------------------------------------------------- | ----------------- | ---- | ---------- |
 | **API Service** | Data cleaning, REST API, statistics                | FastAPI + Uvicorn | 8080 | Cloud Run  |
-| **MCP Service** | AI assistant integration, natural language queries | MCP SDK + FastAPI | 8080 | Cloud Run  |
+| **MCP Service** | AI assistant integration, natural language queries | FastMCP 2.0       | 8080 | Cloud Run  |
 
 Both services can run **independently** while sharing the `core/` business logic.
 
@@ -172,7 +174,7 @@ Integrate with Claude Desktop or ChatGPT using the MCP protocol:
 **For Claude Desktop (stdio mode)**:
 
 ```bash
-# Run MCP server locally
+# Run MCP server locally (FastMCP auto-detects mode)
 python mcp/mcp_server.py
 ```
 
@@ -271,6 +273,7 @@ export GCP_PROJECT_ID=your-project-id
 - `sync_from_gcs` - Sync from cloud storage
 - `check_upcoming_completeness` - Check future scheduling
 - `generate_weekly_preview` - Generate weekly preview
+- `get_volunteer_service_counts` - Generate service statistics (supports role filtering)
 
 **22+ Resources** (Read-only data access):
 
@@ -364,7 +367,7 @@ export GCP_PROJECT_ID=your-project-id
 | ------------------------- | ------------- | ------- | ---------------------- |
 | **API Framework**   | FastAPI       | 0.118+  | Async HTTP endpoints   |
 | **ASGI Server**     | Uvicorn       | 0.37+   | Production server      |
-| **MCP SDK**         | mcp (Python)  | 1.16+   | Model Context Protocol |
+| **MCP SDK**         | FastMCP       | 2.0+    | Simplified MCP Server  |
 | **SSE Transport**   | sse-starlette | 2.0+    | Server-Sent Events     |
 | **Data Processing** | Pandas        | 2.2+    | DataFrame operations   |
 | **Type Validation** | Pydantic      | 2.12+   | Data models            |
@@ -400,8 +403,7 @@ Grace-Irvine-Ministry-Clean/
 │   └── README.md                # API documentation
 │
 ├── mcp/                         # 🟢 MCP Service (AI assistant integration)
-│   ├── mcp_server.py            # Unified MCP server (stdio + HTTP)
-│   ├── sse_transport.py         # HTTP/SSE transport handler
+│   ├── mcp_server.py            # Unified FastMCP server (stdio + HTTP)
 │   ├── Dockerfile               # MCP service container
 │   └── README.md                # MCP documentation
 │
@@ -620,7 +622,7 @@ pytest tests/ -v
 # Start API service locally
 cd api && uvicorn app:app --reload
 
-# Start MCP service locally
+# Start MCP service locally (FastMCP)
 cd mcp && python mcp_server.py
 ```
 
@@ -636,6 +638,7 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) file for 
 
 - **FastAPI** - Modern Python web framework
 - **MCP SDK** - Model Context Protocol implementation
+- **FastMCP** - Simplified MCP framework for Python
 - **Google Cloud** - Cloud infrastructure
 - **Anthropic Claude** - AI assistant integration
 
