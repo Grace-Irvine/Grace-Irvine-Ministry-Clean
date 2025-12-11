@@ -419,22 +419,191 @@ def generate_weekly_preview(date: str = None, format: str = "text", year: str = 
     day_volunteers = [v for v in volunteer_data.get("volunteers", []) if v.get("service_date", "").startswith(date)]
     day_sermons = [s for s in sermon_data.get("sermons", []) if s.get("service_date", "").startswith(date)]
     
-    # 构建简报
-    lines = [f"=== 主日预览 {date} ==="]
-    
-    if day_sermons:
-        lines.append("\n📖 证道信息:")
-        lines.append(format_sermon_record(day_sermons[0]))
-    else:
-        lines.append("\n📖 证道信息: 待定")
+    sermon = day_sermons[0] if day_sermons else {}
+    volunteer = day_volunteers[0] if day_volunteers else {}
+
+    # Helper to get display name safely
+    def get_name(obj):
+        if not obj: return ""
+        if isinstance(obj, str): return obj
+        return obj.get("name", "")
+
+    if format == "html":
+        html = [f"<h3>主日预览 {date}</h3>"]
         
-    if day_volunteers:
-        lines.append("\n👥 同工安排:")
-        lines.append(format_volunteer_record(day_volunteers[0]))
-    else:
-        lines.append("\n👥 同工安排: 待定")
+        html.append("<h4>📖 证道信息</h4>")
+        if sermon:
+            html.append("<ul>")
+            preacher = get_name(sermon.get('preacher'))
+            if preacher: html.append(f"<li>🎤 {get_role_display_name('preacher')}: {preacher}</li>")
+            
+            reading = get_name(sermon.get('reading'))
+            if reading: html.append(f"<li>📖 {get_role_display_name('reading')}: {reading}</li>")
+            
+            sermon_info = sermon.get('sermon', {})
+            if sermon_info.get('series'): html.append(f"<li>📚 系列: {sermon_info['series']}</li>")
+            if sermon_info.get('title'): html.append(f"<li>📖 标题: {sermon_info['title']}</li>")
+            if sermon_info.get('scripture'): html.append(f"<li>📜 经文: {sermon_info['scripture']}</li>")
+            
+            songs = sermon.get('songs', [])
+            if songs: html.append(f"<li>🎵 诗歌: {', '.join(songs)}</li>")
+            html.append("</ul>")
+        else:
+            html.append("<p>待定</p>")
+            
+        html.append("<h4>👥 同工安排</h4>")
+        if volunteer:
+            html.append("<ul>")
+            # Reuse logic from format_volunteer_record but output HTML
+            departments = CONFIG.get('departments', {})
+            
+            # Worship
+            worship = volunteer.get('worship', {})
+            if worship:
+                dept_name = departments.get('worship', {}).get('name', '敬拜团队')
+                html.append(f"<li><strong>🎵 {dept_name}</strong><ul>")
+                lead = get_name(worship.get('lead'))
+                if lead: html.append(f"<li>{get_role_display_name('worship_lead')}: {lead}</li>")
+                
+                team = worship.get('team', [])
+                team_names = [get_name(m) for m in team if get_name(m)]
+                if team_names: html.append(f"<li>{get_role_display_name('worship_team')}: {', '.join(team_names)}</li>")
+                
+                pianist = get_name(worship.get('pianist'))
+                if pianist: html.append(f"<li>{get_role_display_name('pianist')}: {pianist}</li>")
+                html.append("</ul></li>")
+
+            # Technical
+            technical = volunteer.get('technical', {})
+            if technical:
+                dept_name = departments.get('technical', {}).get('name', '技术团队')
+                html.append(f"<li><strong>🔧 {dept_name}</strong><ul>")
+                for role in ['audio', 'video', 'propresenter_play', 'propresenter_update', 'video_editor']:
+                    p_name = get_name(technical.get(role))
+                    if p_name: html.append(f"<li>{get_role_display_name(role)}: {p_name}</li>")
+                html.append("</ul></li>")
+                
+            # Education
+            education = volunteer.get('education', {})
+            if education:
+                dept_name = departments.get('education', {}).get('name', '儿童部')
+                html.append(f"<li><strong>👶 {dept_name}</strong><ul>")
+                friday = get_name(education.get('friday_child_ministry'))
+                if friday: html.append(f"<li>{get_role_display_name('friday_child_ministry')}: {friday}</li>")
+                
+                assistants = education.get('sunday_child_assistants', [])
+                asst_names = [get_name(a) for a in assistants if get_name(a)]
+                if asst_names: html.append(f"<li>{get_role_display_name('sunday_child_assistant')}: {', '.join(asst_names)}</li>")
+                html.append("</ul></li>")
+                
+            # Outreach
+            outreach = volunteer.get('outreach', {})
+            if outreach:
+                dept_name = departments.get('outreach', {}).get('name', '外展联络')
+                html.append(f"<li><strong>🤝 {dept_name}</strong><ul>")
+                for r in ['newcomer_reception_1', 'newcomer_reception_2']:
+                    p_name = get_name(outreach.get(r))
+                    if p_name: html.append(f"<li>{get_role_display_name(r)}: {p_name}</li>")
+                html.append("</ul></li>")
+            
+            html.append("</ul>")
+        else:
+            html.append("<p>待定</p>")
+            
+        return "".join(html)
+
+    elif format == "markdown":
+        md = [f"### 主日预览 {date}\n"]
         
-    return '\n'.join(lines)
+        md.append("#### 📖 证道信息")
+        if sermon:
+            preacher = get_name(sermon.get('preacher'))
+            if preacher: md.append(f"* **{get_role_display_name('preacher')}**: {preacher}")
+            
+            reading = get_name(sermon.get('reading'))
+            if reading: md.append(f"* **{get_role_display_name('reading')}**: {reading}")
+            
+            sermon_info = sermon.get('sermon', {})
+            if sermon_info.get('series'): md.append(f"* **系列**: {sermon_info['series']}")
+            if sermon_info.get('title'): md.append(f"* **标题**: {sermon_info['title']}")
+            if sermon_info.get('scripture'): md.append(f"* **经文**: {sermon_info['scripture']}")
+            
+            songs = sermon.get('songs', [])
+            if songs: md.append(f"* **诗歌**: {', '.join(songs)}")
+        else:
+            md.append("待定")
+        md.append("")
+            
+        md.append("#### 👥 同工安排")
+        if volunteer:
+            departments = CONFIG.get('departments', {})
+            
+            # Worship
+            worship = volunteer.get('worship', {})
+            if worship:
+                dept_name = departments.get('worship', {}).get('name', '敬拜团队')
+                md.append(f"* **🎵 {dept_name}**")
+                lead = get_name(worship.get('lead'))
+                if lead: md.append(f"  * {get_role_display_name('worship_lead')}: {lead}")
+                
+                team = worship.get('team', [])
+                team_names = [get_name(m) for m in team if get_name(m)]
+                if team_names: md.append(f"  * {get_role_display_name('worship_team')}: {', '.join(team_names)}")
+                
+                pianist = get_name(worship.get('pianist'))
+                if pianist: md.append(f"  * {get_role_display_name('pianist')}: {pianist}")
+
+            # Technical
+            technical = volunteer.get('technical', {})
+            if technical:
+                dept_name = departments.get('technical', {}).get('name', '技术团队')
+                md.append(f"* **🔧 {dept_name}**")
+                for role in ['audio', 'video', 'propresenter_play', 'propresenter_update', 'video_editor']:
+                    p_name = get_name(technical.get(role))
+                    if p_name: md.append(f"  * {get_role_display_name(role)}: {p_name}")
+                
+            # Education
+            education = volunteer.get('education', {})
+            if education:
+                dept_name = departments.get('education', {}).get('name', '儿童部')
+                md.append(f"* **👶 {dept_name}**")
+                friday = get_name(education.get('friday_child_ministry'))
+                if friday: md.append(f"  * {get_role_display_name('friday_child_ministry')}: {friday}")
+                
+                assistants = education.get('sunday_child_assistants', [])
+                asst_names = [get_name(a) for a in assistants if get_name(a)]
+                if asst_names: md.append(f"  * {get_role_display_name('sunday_child_assistant')}: {', '.join(asst_names)}")
+                
+            # Outreach
+            outreach = volunteer.get('outreach', {})
+            if outreach:
+                dept_name = departments.get('outreach', {}).get('name', '外展联络')
+                md.append(f"* **🤝 {dept_name}**")
+                for r in ['newcomer_reception_1', 'newcomer_reception_2']:
+                    p_name = get_name(outreach.get(r))
+                    if p_name: md.append(f"  * {get_role_display_name(r)}: {p_name}")
+        else:
+            md.append("待定")
+            
+        return "\n".join(md)
+
+    else:
+        # Default text format
+        lines = [f"=== 主日预览 {date} ==="]
+        
+        if sermon:
+            lines.append("\n📖 证道信息:")
+            lines.append(format_sermon_record(sermon))
+        else:
+            lines.append("\n📖 证道信息: 待定")
+            
+        if volunteer:
+            lines.append("\n👥 同工安排:")
+            lines.append(format_volunteer_record(volunteer))
+        else:
+            lines.append("\n👥 同工安排: 待定")
+            
+        return '\n'.join(lines)
 
 @mcp.tool()
 def get_volunteer_service_counts(year: str = None, sort_by: str = "count", role: str = None, min_count: int = None, max_count: int = None) -> str:
