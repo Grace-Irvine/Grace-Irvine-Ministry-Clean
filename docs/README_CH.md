@@ -187,7 +187,7 @@ python mcp/mcp_server.py
 - 9 个工具用于数据操作
 - 22+ 资源用于数据访问
 
-👉 **详见**：[MCP 服务器文档](../service/README.md) | [MCP 架构设计](MCP_DESIGN.md)
+👉 **详见**：[MCP 服务器文档](../service/README.md)
 
 ---
 
@@ -249,7 +249,7 @@ export GCP_PROJECT_ID=your-project-id
 
 ### 🤖 AI 助手集成（MCP 协议）
 
-**9 个工具**（面向操作）：
+**10 个工具**（面向操作）：
 
 - `query_volunteers_by_date` - 查询同工分配
 - `query_sermon_by_date` - 查询证道信息
@@ -260,6 +260,7 @@ export GCP_PROJECT_ID=your-project-id
 - `sync_from_gcs` - 从云存储同步
 - `check_upcoming_completeness` - 检查未来排期
 - `generate_weekly_preview` - 生成每周预览
+- `get_volunteer_service_counts` - 生成服侍次数统计（支持按岗位筛选）
 
 **22+ 资源**（只读数据访问）：
 
@@ -392,6 +393,11 @@ Grace-Irvine-Ministry-Clean/
 │   ├── Dockerfile               # MCP 服务容器
 │   └── README.md                # MCP 文档
 │
+├── service/                      # 🟣 附加服务与工具（包含 MCP server 副本 + scheduler 示例）
+│   ├── mcp_server.py             # MCP server（与 `mcp/mcp_server.py` 保持同步）
+│   ├── README.md                 # MCP 使用指南（以此为准）
+│   └── example/                  # weekly preview scheduler 示例与脚本
+│
 ├── core/                        # 🔧 共享业务逻辑（80%+ 复用）
 │   ├── clean_pipeline.py        # 主清洗编排
 │   ├── service_layer.py         # 服务层转换器
@@ -411,20 +417,21 @@ Grace-Irvine-Ministry-Clean/
 │
 ├── config/                      # ⚙️ 配置文件
 │   ├── config.json              # 主配置
-│   ├── claude_desktop_config.example.json   # Claude Desktop 配置
 │   ├── env.example              # 环境变量
 │   └── service-account.json     # GCP 服务账号
-│
-├── tests/                       # 🧪 测试
-│   ├── test_cleaning.py         # 单元测试
-│   ├── sample_raw.csv           # 样本原始数据
-│   └── sample_aliases.csv       # 样本别名
 │
 ├── logs/                        # 📊 日志和输出
 │   ├── clean_preview.csv        # 清洗后数据（CSV）
 │   ├── clean_preview.json       # 清洗后数据（JSON）
 │   ├── service_layer/           # 服务层数据
 │   └── validation_report_*.txt # 验证报告
+│
+├── examples/                    # 💡 示例
+│   ├── mcp_client_example.py
+│   └── volunteer_analysis_examples.md
+│
+├── test_weekly_preview.py        # 🧪 Weekly preview 测试
+├── test_weekly_preview_manual.py # 🧪 Weekly preview 手动测试
 │
 ├── CHANGELOG.md                 # 版本历史
 ├── README.md                    # 英文自述文件
@@ -502,41 +509,16 @@ python core/clean_pipeline.py --config config/config.json
 
 ## 🧪 测试
 
-### 运行单元测试
+### 运行冒烟测试
 
 ```bash
-# 运行所有测试
-pytest tests/test_cleaning.py -v
-
-# 运行特定测试类
-pytest tests/test_cleaning.py::TestCleaningRules -v
-
-# 运行特定测试方法
-pytest tests/test_cleaning.py::TestCleaningRules::test_clean_date_formats -v
+python ../test_weekly_preview.py
+python ../test_weekly_preview_manual.py
 ```
 
 ### 测试覆盖范围
 
-单元测试涵盖：
-
-- ✅ 日期格式清洗和标准化
-- ✅ 文本清理（空格、占位符）
-- ✅ 经文引用格式化
-- ✅ 歌曲拆分和去重
-- ✅ 列合并
-- ✅ 别名映射
-- ✅ 数据验证（必填字段、日期有效性、重复检测）
-
-### 样本数据
-
-`tests/sample_raw.csv` 包含各种测试场景：
-
-- 不同的日期格式
-- 带空格的文本
-- 多种歌曲分隔符
-- 别名
-- 空值和占位符
-- 无效日期（用于错误处理测试）
+*（说明：仓库中包含 `pytest` 依赖，但目前主要的自动化校验集中在 `test_weekly_preview.py` / `test_weekly_preview_manual.py`。）*
 
 ---
 

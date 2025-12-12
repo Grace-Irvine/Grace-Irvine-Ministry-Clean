@@ -5,6 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.118+-green.svg)](https://fastapi.tiangolo.com/)
 [![MCP](https://img.shields.io/badge/MCP-1.16+-purple.svg)](https://modelcontextprotocol.io/)
+[![FastMCP](https://img.shields.io/badge/FastMCP-2.0+-orange.svg)](https://github.com/modelcontextprotocol/python-sdk)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 一个完整的教会主日事工数据管理系统，具备智能数据清洗、领域模型转换、RESTful API，以及**通过模型上下文协议（MCP）的 AI 助手集成**功能。
@@ -64,7 +65,7 @@ Grace-Irvine-Ministry-Clean/
 | 服务               | 用途                         | 技术栈            | 端口 | 部署方式  |
 | ------------------ | ---------------------------- | ----------------- | ---- | --------- |
 | **API 服务** | 数据清洗、REST API、统计分析 | FastAPI + Uvicorn | 8080 | Cloud Run |
-| **MCP 服务** | AI 助手集成、自然语言查询    | MCP SDK + FastAPI | 8080 | Cloud Run |
+| **MCP 服务** | AI 助手集成、自然语言查询    | FastMCP 2.0       | 8080 | Cloud Run |
 
 两个服务可以**独立运行**，同时共享 `core/` 业务逻辑。
 
@@ -74,7 +75,7 @@ Grace-Irvine-Ministry-Clean/
 
 **目的**：标准化来自 Google Sheets 的原始数据
 
-**文件**：[core/clean_pipeline.py](../core/clean_pipeline.py)
+**文件**：[core/clean_pipeline.py](core/clean_pipeline.py)
 
 **转换操作**：
 
@@ -93,7 +94,7 @@ Grace-Irvine-Ministry-Clean/
 
 **目的**：将扁平的清洗数据转换为结构化领域模型
 
-**文件**：[core/service_layer.py](../core/service_layer.py)
+**文件**：[core/service_layer.py](core/service_layer.py)
 
 **领域模型**：
 
@@ -190,7 +191,7 @@ python mcp/mcp_server.py
 - 9 个工具用于数据操作
 - 22+ 资源用于数据访问
 
-👉 **详见**：[MCP 服务器文档](service/README.md) | [MCP 架构设计](MCP_DESIGN.md)
+👉 **详见**：[MCP 服务器文档](service/README.md)
 
 ---
 
@@ -252,7 +253,7 @@ export GCP_PROJECT_ID=your-project-id
 
 ### 🤖 AI 助手集成（MCP 协议）
 
-**9 个工具**（面向操作）：
+**10 个工具**（面向操作）：
 
 - `query_volunteers_by_date` - 查询同工分配
 - `query_sermon_by_date` - 查询证道信息
@@ -263,6 +264,7 @@ export GCP_PROJECT_ID=your-project-id
 - `sync_from_gcs` - 从云存储同步
 - `check_upcoming_completeness` - 检查未来排期
 - `generate_weekly_preview` - 生成每周预览
+- `get_volunteer_service_counts` - 生成服侍次数统计（支持按岗位筛选）
 
 **22+ 资源**（只读数据访问）：
 
@@ -392,7 +394,11 @@ Grace-Irvine-Ministry-Clean/
 ├── mcp/                         # 🟢 MCP 服务（AI 助手集成）
 │   ├── mcp_server.py            # 统一 MCP 服务器（stdio + HTTP/SSE）
 │   ├── Dockerfile               # MCP 服务容器
-│   └── (see service/README.md)  # MCP 文档
+│
+├── service/                      # 🟣 附加服务与工具（包含 MCP server 副本 + scheduler 示例）
+│   ├── mcp_server.py             # MCP server（与 `mcp/mcp_server.py` 保持同步）
+│   ├── README.md                 # MCP 使用指南（以此为准）
+│   └── example/                  # weekly preview scheduler 示例与脚本
 │
 ├── core/                        # 🔧 共享业务逻辑（80%+ 复用）
 │   ├── clean_pipeline.py        # 主清洗编排
@@ -413,20 +419,21 @@ Grace-Irvine-Ministry-Clean/
 │
 ├── config/                      # ⚙️ 配置文件
 │   ├── config.json              # 主配置
-│   ├── claude_desktop_config.example.json   # Claude Desktop 配置
 │   ├── env.example              # 环境变量
 │   └── service-account.json     # GCP 服务账号
-│
-├── tests/                       # 🧪 测试
-│   ├── test_cleaning.py         # 单元测试
-│   ├── sample_raw.csv           # 样本原始数据
-│   └── sample_aliases.csv       # 样本别名
 │
 ├── logs/                        # 📊 日志和输出
 │   ├── clean_preview.csv        # 清洗后数据（CSV）
 │   ├── clean_preview.json       # 清洗后数据（JSON）
 │   ├── service_layer/           # 服务层数据
 │   └── validation_report_*.txt # 验证报告
+│
+├── examples/                    # 💡 示例
+│   ├── mcp_client_example.py
+│   └── volunteer_analysis_examples.md
+│
+├── test_weekly_preview.py        # 🧪 Weekly preview 测试
+├── test_weekly_preview_manual.py # 🧪 Weekly preview 手动测试
 │
 ├── CHANGELOG.md                 # 版本历史
 ├── README.md                    # 英文自述文件
@@ -504,41 +511,14 @@ python core/clean_pipeline.py --config config/config.json
 
 ## 🧪 测试
 
-### 运行单元测试
+### 运行冒烟测试
 
 ```bash
-# 运行所有测试
-pytest tests/test_cleaning.py -v
-
-# 运行特定测试类
-pytest tests/test_cleaning.py::TestCleaningRules -v
-
-# 运行特定测试方法
-pytest tests/test_cleaning.py::TestCleaningRules::test_clean_date_formats -v
+python test_weekly_preview.py
+python test_weekly_preview_manual.py
 ```
 
-### 测试覆盖范围
-
-单元测试涵盖：
-
-- ✅ 日期格式清洗和标准化
-- ✅ 文本清理（空格、占位符）
-- ✅ 经文引用格式化
-- ✅ 歌曲拆分和去重
-- ✅ 列合并
-- ✅ 别名映射
-- ✅ 数据验证（必填字段、日期有效性、重复检测）
-
-### 样本数据
-
-`tests/sample_raw.csv` 包含各种测试场景：
-
-- 不同的日期格式
-- 带空格的文本
-- 多种歌曲分隔符
-- 别名
-- 空值和占位符
-- 无效日期（用于错误处理测试）
+*（说明：仓库中包含 `pytest` 依赖，但目前主要的自动化校验集中在上述两个脚本。）*
 
 ---
 
@@ -562,7 +542,7 @@ pytest tests/test_cleaning.py::TestCleaningRules::test_clean_date_formats -v
 - ❌ 日志中不打印敏感令牌
 
 **Secret Manager 支持**：
-- 所有 3 个 Cloud Run 服务已集成 Secret Manager
+- Cloud Run 服务已集成 Secret Manager（API + MCP；weekly-preview 服务为可选）
 - 管理的 4 个 secrets：`mcp-bearer-token`、`api-scheduler-token`、`weekly-preview-scheduler-token`、`weekly-preview-smtp-password`
 - 支持自动 token 轮换
 
@@ -616,7 +596,7 @@ cd mcp && python mcp_server.py
 
 ## 📄 许可证
 
-本项目采用 MIT 许可证。详见 [LICENSE](../LICENSE) 文件。
+本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
 
 ---
 
