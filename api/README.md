@@ -145,5 +145,5 @@ curl https://ministry-data-api-xxx.run.app/health
 
 ## 🔗 相关文档
 - [主README](../README.md) - 完整项目文档
-- [MCP服务器文档](../mcp/README.md) - MCP 集成指南
+- [MCP服务器文档](../service/README.md) - MCP 集成指南
 

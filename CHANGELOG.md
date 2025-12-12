@@ -21,6 +21,11 @@
 - ✅ **依赖更新**: 引入 `fastmcp>=2.0.0`
 - ✅ **双模式支持**: 保持 `stdio` (本地) 和 `SSE` (Cloud Run) 双重传输模式
 
+#### 4.4.1 (Unreleased)
+- ✅ **规范化 MCP HTTP 入口**：统一使用 **`/mcp`** 作为 Cloud Run 上的 MCP SSE 端点
+- ✅ **兼容性**：保留 `/sse` 作为 legacy alias（服务端内部重写到 `/mcp`）
+- ✅ **文档与脚本更新**：部署脚本、测试脚本与文档示例统一切换到 `/mcp`
+
 ##### 2. 工具功能增强
 - ✅ **`get_volunteer_service_counts` 改进**:
   - 新增 `role` 参数，支持按特定岗位（如 `worship_lead`, `pianist`）筛选统计

@@ -967,6 +967,40 @@ try:
                 logger.info("/health endpoint already exists")
         except Exception as e:
             logger.warning(f"Failed to add /health endpoint: {e}")
+
+    # Add path aliases for compatibility (e.g. legacy clients expect /sse)
+    # We do this at ASGI-scope level (not HTTP redirects) so SSE streams keep working.
+    if app and callable(app):
+        try:
+            def _wrap_with_path_aliases(asgi_app):
+                async def _alias_asgi(scope, receive, send):
+                    if scope.get("type") == "http":
+                        path = scope.get("path") or ""
+                        if path == "/sse":
+                            new_path = "/mcp"
+                        elif path.startswith("/sse/"):
+                            new_path = "/mcp/" + path[len("/sse/"):]
+                        else:
+                            new_path = None
+
+                        if new_path:
+                            new_scope = dict(scope)
+                            new_scope["path"] = new_path
+                            # raw_path is bytes in ASGI
+                            try:
+                                new_scope["raw_path"] = new_path.encode("utf-8")
+                            except Exception:
+                                pass
+                            return await asgi_app(new_scope, receive, send)
+
+                    return await asgi_app(scope, receive, send)
+
+                return _alias_asgi
+
+            app = _wrap_with_path_aliases(app)
+            logger.info("Enabled ASGI path alias: /sse -> /mcp")
+        except Exception as e:
+            logger.warning(f"Failed to enable /sse alias: {e}")
     
     if app:
         logger.info(f"ASGI app exposed for uvicorn: {type(app)}")

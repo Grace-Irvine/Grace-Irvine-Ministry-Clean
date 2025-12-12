@@ -940,6 +940,42 @@ except Exception as e:
     logger.error(f"Error exposing ASGI app: {e}")
     app = None
 
+# ------------------------------------------------------------------
+# Cloud Run / client compatibility:
+# Some clients (and older deployment scripts) expect the SSE endpoint at /sse.
+# FastMCP may expose it at /mcp. We add an ASGI-level alias so streaming works.
+# ------------------------------------------------------------------
+if app and callable(app):
+    try:
+        def _wrap_with_path_aliases(asgi_app):
+            async def _alias_asgi(scope, receive, send):
+                if scope.get("type") == "http":
+                    path = scope.get("path") or ""
+                    if path == "/sse":
+                        new_path = "/mcp"
+                    elif path.startswith("/sse/"):
+                        new_path = "/mcp/" + path[len("/sse/"):]
+                    else:
+                        new_path = None
+
+                    if new_path:
+                        new_scope = dict(scope)
+                        new_scope["path"] = new_path
+                        try:
+                            new_scope["raw_path"] = new_path.encode("utf-8")
+                        except Exception:
+                            pass
+                        return await asgi_app(new_scope, receive, send)
+
+                return await asgi_app(scope, receive, send)
+
+            return _alias_asgi
+
+        app = _wrap_with_path_aliases(app)
+        logger.info("Enabled ASGI path alias: /sse -> /mcp")
+    except Exception as e:
+        logger.warning(f"Failed to enable /sse alias: {e}")
+
 if __name__ == "__main__":
     import uvicorn
     

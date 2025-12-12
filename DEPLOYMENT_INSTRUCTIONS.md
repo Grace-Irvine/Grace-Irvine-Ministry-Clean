@@ -1,38 +1,26 @@
-# Deployment Instructions - SSE Transport Update
+# Deployment Instructions - MCP HTTP/SSE Endpoint Standardization
 
 ## Summary of Changes
 
-The MCP server has been updated with **proper SSE (Server-Sent Events) transport** to enable OpenAI ChatGPT integration.
-
-### Files Created
-- `mcp/sse_transport.py` - New SSE transport implementation
+The MCP server is exposed over HTTP using **MCP over SSE**. The canonical endpoint is now **`/mcp`**.
 
 ### Files Modified
-- `mcp/mcp_server.py` - Added `/sse` endpoint, removed incompatible REST endpoints
-- `deploy/deploy-mcp.sh` - Updated deployment script for new endpoints
-- SSE implementation documentation (已整合到主 README)
-- OpenAI integration guide (已整合到主 README)
+- `mcp/mcp_server.py` / `service/mcp_server.py` - MCP server (stdio + HTTP/SSE) with `/sse -> /mcp` compat alias
+- `deploy/deploy-mcp.sh` - Deployment script updated to use `/mcp`
+- `deploy/deploy-all.sh` - Deployment summary updated to show `/mcp`
+- Docs & examples updated to reference `/mcp`
 
 ### Key Changes
 
-1. **New SSE Endpoint**: `GET /sse`
-   - Replaces old `/mcp` endpoint
-   - Proper Server-Sent Events streaming
+1. **Canonical MCP Endpoint**: `POST /mcp` (HTTP/SSE)
+   - MCP over Server-Sent Events (SSE)
    - Bearer token authentication
    - Full MCP protocol support
-   - Accepts JSON-RPC messages via `message` query parameter (URL encoded)
+   - Requires correct `Accept` header: `application/json, text/event-stream`
 
-2. **Removed Endpoints**:
-   - `/mcp` (POST) - No longer needed
-   - `/mcp/tools` (GET) - No longer needed
-   - `/mcp/resources` (GET) - No longer needed
-   - `/mcp/prompts` (GET) - No longer needed
-   - `/mcp/capabilities` (GET) - No longer needed
-
-3. **Kept Endpoints**:
-   - `/` - Server info
-   - `/health` - Health check
-   - `/sse` - Main MCP endpoint (NEW)
+2. **Compatibility Alias**: `/sse`
+   - Kept for older clients / scripts
+   - Internally rewritten to `/mcp` on the server
 
 ## Deployment Steps
 
@@ -43,7 +31,7 @@ cd /path/to/Grace-Irvine-Ministry-Clean
 
 # Set environment variables
 export GCP_PROJECT_ID=<your-actual-project-id>
-export MCP_BEARER_TOKEN=c577d598601f7b8f01c02053f6db89081321fd3d27fc0cabb5deec1647dbfe42
+export MCP_BEARER_TOKEN=<your-bearer-token>
 
 # Run deployment script
 bash deploy/deploy-mcp.sh
@@ -60,7 +48,7 @@ gcloud run deploy ministry-data-mcp \
   --region=us-central1 \
   --platform=managed \
   --allow-unauthenticated \
-  --set-env-vars="MCP_BEARER_TOKEN=c577d598601f7b8f01c02053f6db89081321fd3d27fc0cabb5deec1647dbfe42,MCP_REQUIRE_AUTH=true" \
+  --set-env-vars="MCP_BEARER_TOKEN=<your-bearer-token>,MCP_REQUIRE_AUTH=true" \
   --project=<your-project-id>
 ```
 
@@ -93,13 +81,15 @@ Expected response:
 }
 ```
 
-### 2. Test SSE Endpoint (Initialize)
+### 2. Test MCP Endpoint (Initialize)
 
 ```bash
-curl -N \
-  -H "Authorization: Bearer c577d598601f7b8f01c02053f6db89081321fd3d27fc0cabb5deec1647dbfe42" \
-  -H "Accept: text/event-stream" \
-  "https://ministry-data-mcp-760303847302.us-central1.run.app/sse?message=%7B%22jsonrpc%22%3A%222.0%22%2C%22id%22%3A1%2C%22method%22%3A%22initialize%22%2C%22params%22%3A%7B%7D%7D"
+curl -N -X POST \
+  -H "Authorization: Bearer <your-bearer-token>" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"curl-test","version":"0.0.0"}}}' \
+  "https://ministry-data-mcp-760303847302.us-central1.run.app/mcp"
 ```
 
 Expected response (SSE format):
@@ -108,13 +98,15 @@ event: message
 data: {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{...}}}
 ```
 
-### 3. Test SSE Endpoint (List Tools)
+### 3. Test MCP Endpoint (List Tools)
 
 ```bash
-curl -N \
-  -H "Authorization: Bearer c577d598601f7b8f01c02053f6db89081321fd3d27fc0cabb5deec1647dbfe42" \
-  -H "Accept: text/event-stream" \
-  "https://ministry-data-mcp-760303847302.us-central1.run.app/sse?message=%7B%22jsonrpc%22%3A%222.0%22%2C%22id%22%3A2%2C%22method%22%3A%22tools%2Flist%22%2C%22params%22%3A%7B%7D%7D"
+curl -N -X POST \
+  -H "Authorization: Bearer <your-bearer-token>" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+  "https://ministry-data-mcp-760303847302.us-central1.run.app/mcp"
 ```
 
 Expected response should include 11 tools.
@@ -132,9 +124,9 @@ Once deployed, add the MCP server to OpenAI:
    - Click "Add MCP Server"
    - Enter:
      - **Server Name**: `Ministry Data`
-     - **Server URL**: `https://ministry-data-mcp-760303847302.us-central1.run.app/sse`
+     - **Server URL**: `https://ministry-data-mcp-760303847302.us-central1.run.app/mcp`
      - **Authentication**: `Bearer Token`
-     - **Token**: `c577d598601f7b8f01c02053f6db89081321fd3d27fc0cabb5deec1647dbfe42`
+     - **Token**: `<your-bearer-token>`
 
 3. **Verify Connection**
    - Should show "✅ Connected"
@@ -147,7 +139,8 @@ Once deployed, add the MCP server to OpenAI:
 **Cause**: Server not deployed with latest code, or using wrong URL
 
 **Solution**:
-1. Verify you're using `/sse` endpoint (not `/mcp`)
+1. Verify you're using the `/mcp` endpoint
+2. Ensure the request sets: `Accept: application/json, text/event-stream`
 2. Deploy the latest code
 3. Check Cloud Run logs:
    ```bash
@@ -184,7 +177,6 @@ Once deployed, add the MCP server to OpenAI:
 ```
 mcp/
 ├── mcp_server.py          # Main server (updated)
-├── sse_transport.py       # SSE transport (new)
 ├── Dockerfile             # Container config
 ├── cloudbuild.yaml        # Build config
 └── README.md              # Documentation
@@ -207,11 +199,9 @@ deploy/
 
 For more information:
 - [主README](README.md) - 完整项目文档
-- [MCP服务器文档](mcp/README.md) - MCP 集成指南
+- [MCP服务器文档](service/README.md) - MCP 集成指南
 
 ---
 
-**Implementation Date**: 2025-10-22
 **Protocol Version**: MCP 2024-11-05
-**Server Version**: 2.0.0
 

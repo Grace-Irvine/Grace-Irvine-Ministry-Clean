@@ -141,8 +141,8 @@ async def call_mcp_tool(
     Returns:
         工具调用结果
     """
-    # MCP Server 使用 /sse 端点
-    url = f"{MCP_SERVER_URL}/sse"
+    # MCP Server 使用 /mcp 端点（HTTP/SSE）
+    url = f"{MCP_SERVER_URL}/mcp"
     headers = {}
     
     if MCP_BEARER_TOKEN:

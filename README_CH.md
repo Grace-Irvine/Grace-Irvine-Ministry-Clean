@@ -190,7 +190,7 @@ python mcp/mcp_server.py
 - 9 个工具用于数据操作
 - 22+ 资源用于数据访问
 
-👉 **详见**：[MCP 服务器文档](../mcp/README.md) | [MCP 架构设计](MCP_DESIGN.md)
+👉 **详见**：[MCP 服务器文档](service/README.md) | [MCP 架构设计](MCP_DESIGN.md)
 
 ---
 
@@ -242,7 +242,7 @@ export GCP_PROJECT_ID=your-project-id
 
 ## 📚 其他资源
 
-- **MCP 服务器指南**: 查看 `mcp/README.md` 了解完整的 MCP 使用指南
+- **MCP 服务器指南**: 查看 `service/README.md` 了解完整的 MCP 使用指南
 - **API 文档**: 本地运行时可通过 `/docs` 端点访问交互式 API 文档
 - **部署脚本**: 查看 `deploy/` 目录了解部署自动化脚本
 
@@ -390,10 +390,9 @@ Grace-Irvine-Ministry-Clean/
 │   └── README.md                # API 文档
 │
 ├── mcp/                         # 🟢 MCP 服务（AI 助手集成）
-│   ├── mcp_server.py            # 统一 MCP 服务器（stdio + HTTP）
-│   ├── sse_transport.py         # HTTP/SSE 传输处理器
+│   ├── mcp_server.py            # 统一 MCP 服务器（stdio + HTTP/SSE）
 │   ├── Dockerfile               # MCP 服务容器
-│   └── README.md                # MCP 文档
+│   └── (see service/README.md)  # MCP 文档
 │
 ├── core/                        # 🔧 共享业务逻辑（80%+ 复用）
 │   ├── clean_pipeline.py        # 主清洗编排
