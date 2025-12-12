@@ -914,11 +914,18 @@ if __name__ == "__main__":
     # 检查是否运行在 HTTP 模式 (Cloud Run 会设置 PORT)
     port = os.getenv("PORT")
     
-    if port:
-        # HTTP/SSE 模式
-        logger.info(f"Starting FastMCP Server in SSE mode on port {port}")
-        mcp.run(transport="sse", port=int(port), host="0.0.0.0")
-    else:
-        # stdio 模式 (默认)
-        logger.info("Starting FastMCP Server in stdio mode")
-        mcp.run()
+    try:
+        if port:
+            # HTTP/SSE 模式
+            logger.info(f"Starting FastMCP Server in SSE mode on port {port}")
+            # Ensure host is "0.0.0.0" to listen on all interfaces (required for Cloud Run)
+            mcp.run(transport="sse", port=int(port), host="0.0.0.0")
+        else:
+            # stdio 模式 (默认)
+            logger.info("Starting FastMCP Server in stdio mode")
+            mcp.run()
+    except Exception as e:
+        logger.error(f"Failed to start FastMCP Server: {e}", exc_info=True)
+        # 确保错误信息输出到 stderr，以便 Cloud Run 捕获
+        print(f"CRITICAL ERROR: Failed to start server: {e}", file=sys.stderr)
+        sys.exit(1)

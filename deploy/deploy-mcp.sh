@@ -100,14 +100,47 @@ gcloud builds submit \
     .
 echo -e "${GREEN}✓ Image built: $IMAGE_NAME${NC}"
 
-# 4. 部署到 Cloud Run
-echo -e "\n${GREEN}[4/6] Deploying to Cloud Run...${NC}"
+# 4. 设置 Secret Manager (提前执行以确保部署时可用)
+echo -e "\n${GREEN}[4/6] Setting up Secret Manager...${NC}"
+
+CLOUD_RUN_SA="${GCP_PROJECT_ID}@appspot.gserviceaccount.com"
+SECRET_CREATED=false
+
+# 检查并授予 mcp-bearer-token 访问权限
+if gcloud secrets describe mcp-bearer-token --project=$GCP_PROJECT_ID &> /dev/null 2>&1; then
+    echo "  Secret 'mcp-bearer-token' exists"
+    SECRET_CREATED=true
+else
+    echo -e "  ${YELLOW}⚠️  Secret 'mcp-bearer-token' does not exist${NC}"
+    if [ -n "$MCP_BEARER_TOKEN" ]; then
+        echo "  Creating new secret with provided token..."
+        echo -n "$MCP_BEARER_TOKEN" | gcloud secrets create mcp-bearer-token \
+            --data-file=- \
+            --replication-policy="automatic" \
+            --project=$GCP_PROJECT_ID
+        SECRET_CREATED=true
+        echo -e "  ${GREEN}✓ Bearer Token secret created${NC}"
+    else
+        echo -e "  ${YELLOW}  提示: 运行 ./deploy/setup-secrets.sh 创建 secrets${NC}"
+        echo -e "  或设置 MCP_BEARER_TOKEN 环境变量后重新部署"
+    fi
+fi
+
+if [ "$SECRET_CREATED" = true ]; then
+    # 授予访问权限
+    gcloud secrets add-iam-policy-binding mcp-bearer-token \
+        --member="serviceAccount:${CLOUD_RUN_SA}" \
+        --role="roles/secretmanager.secretAccessor" \
+        --quiet || true
+    echo -e "  ${GREEN}✓ Secret Manager access configured${NC}"
+fi
+
+# 5. 部署到 Cloud Run
+echo -e "\n${GREEN}[5/6] Deploying to Cloud Run...${NC}"
 
 # 设置环境变量
 ENV_VARS="GCP_PROJECT_ID=${GCP_PROJECT_ID},MCP_MODE=http,MCP_REQUIRE_AUTH=true"
-if [ -n "$MCP_BEARER_TOKEN" ]; then
-    ENV_VARS="${ENV_VARS},MCP_BEARER_TOKEN=${MCP_BEARER_TOKEN}"
-fi
+# 注意：这里不再将 MCP_BEARER_TOKEN 放入 ENV_VARS，而是通过 secrets 注入
 
 DEPLOY_CMD="gcloud run deploy $SERVICE_NAME \
     --image $IMAGE_NAME \
@@ -124,9 +157,12 @@ DEPLOY_CMD="gcloud run deploy $SERVICE_NAME \
 # 构建 secrets 列表
 SECRETS_LIST=""
 
-# 添加 Bearer Token（如果设置）
-if [ -n "$MCP_BEARER_TOKEN" ]; then
-    SECRETS_LIST="MCP_BEARER_TOKEN=mcp-bearer-token:latest"
+# 添加 Bearer Token（优先使用 Secrets）
+if [ "$SECRET_CREATED" = true ] || [ -n "$MCP_BEARER_TOKEN" ]; then
+    # 如果 secret 刚创建或已存在，且我们知道它
+    if gcloud secrets describe mcp-bearer-token --project=$GCP_PROJECT_ID &> /dev/null 2>&1; then
+        SECRETS_LIST="MCP_BEARER_TOKEN=mcp-bearer-token:latest"
+    fi
 fi
 
 # 添加 service account secret（如果存在）
@@ -145,43 +181,9 @@ if [ -n "$SECRETS_LIST" ]; then
 fi
 
 # 执行部署
+echo "Executing: $DEPLOY_CMD"
 eval $DEPLOY_CMD
 echo -e "${GREEN}✓ Service deployed${NC}"
-
-# 5. 设置 Secret Manager 访问权限
-echo -e "\n${GREEN}[5/6] Setting up Secret Manager access...${NC}"
-
-CLOUD_RUN_SA="${GCP_PROJECT_ID}@appspot.gserviceaccount.com"
-
-# 检查并授予 mcp-bearer-token 访问权限
-if gcloud secrets describe mcp-bearer-token --project=$GCP_PROJECT_ID &> /dev/null 2>&1; then
-    echo "  Secret 'mcp-bearer-token' exists"
-    # 授予访问权限
-    gcloud secrets add-iam-policy-binding mcp-bearer-token \
-        --member="serviceAccount:${CLOUD_RUN_SA}" \
-        --role="roles/secretmanager.secretAccessor" \
-        --quiet || true
-    echo -e "  ${GREEN}✓ Secret Manager access configured${NC}"
-else
-    echo -e "  ${YELLOW}⚠️  Secret 'mcp-bearer-token' does not exist${NC}"
-    if [ -n "$MCP_BEARER_TOKEN" ]; then
-        echo "  Creating new secret with provided token..."
-        echo -n "$MCP_BEARER_TOKEN" | gcloud secrets create mcp-bearer-token \
-            --data-file=- \
-            --replication-policy="automatic" \
-            --project=$GCP_PROJECT_ID
-        
-        # 授予访问权限
-        gcloud secrets add-iam-policy-binding mcp-bearer-token \
-            --member="serviceAccount:${CLOUD_RUN_SA}" \
-            --role="roles/secretmanager.secretAccessor"
-        
-        echo -e "  ${GREEN}✓ Bearer Token secret created and configured${NC}"
-    else
-        echo -e "  ${YELLOW}  提示: 运行 ./deploy/setup-secrets.sh 创建 secrets${NC}"
-        echo -e "  或设置 MCP_BEARER_TOKEN 环境变量后重新部署"
-    fi
-fi
 
 # 6. 获取服务 URL
 echo -e "\n${GREEN}[6/6] Getting service URL...${NC}"
@@ -206,6 +208,7 @@ echo -e "${GREEN}Testing health endpoint...${NC}"
 if [ -n "$MCP_BEARER_TOKEN" ]; then
     HEALTH_RESPONSE=$(curl -s -H "Authorization: Bearer $MCP_BEARER_TOKEN" "${SERVICE_URL}/health")
 else
+    # 如果没有本地 token，尝试不做 auth 请求（可能会失败如果 auth required）
     HEALTH_RESPONSE=$(curl -s "${SERVICE_URL}/health")
 fi
 echo -e "Health: ${YELLOW}${HEALTH_RESPONSE}${NC}"
@@ -262,11 +265,10 @@ EOF
     echo "   Token: ${MCP_BEARER_TOKEN}"
     echo "   (Store this in a password manager)"
 else
-    echo -e "${RED}Warning: Service deployed without authentication!${NC}"
-    echo "For production use, set MCP_BEARER_TOKEN and redeploy."
+    echo -e "${RED}Warning: Service deployed without authentication (or token not available locally)!${NC}"
+    echo "If you created a secret, check Secret Manager for the token."
 fi
 
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}Deployment completed successfully!${NC}"
 echo -e "${GREEN}========================================${NC}"
-
