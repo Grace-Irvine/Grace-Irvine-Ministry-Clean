@@ -262,7 +262,7 @@ export GCP_PROJECT_ID=your-project-id
 
 ### 🤖 AI Assistant Integration (MCP Protocol)
 
-**9 Tools** (Action-oriented operations):
+**10 Tools** (Action-oriented operations):
 
 - `query_volunteers_by_date` - Query volunteer assignments
 - `query_sermon_by_date` - Query sermon information
@@ -405,7 +405,11 @@ Grace-Irvine-Ministry-Clean/
 ├── mcp/                         # 🟢 MCP Service (AI assistant integration)
 │   ├── mcp_server.py            # Unified FastMCP server (stdio + HTTP)
 │   ├── Dockerfile               # MCP service container
-│   └── README.md                # MCP documentation
+│
+├── service/                      # 🟣 Additional service utilities (includes MCP server copy + scheduler examples)
+│   ├── mcp_server.py             # MCP server (mirrors `mcp/mcp_server.py`)
+│   ├── README.md                 # MCP usage guide (authoritative doc)
+│   └── example/                  # Weekly preview scheduler examples & scripts
 │
 ├── core/                        # 🔧 Shared business logic (80%+ reuse)
 │   ├── clean_pipeline.py        # Main cleaning orchestration
@@ -425,20 +429,21 @@ Grace-Irvine-Ministry-Clean/
 │
 ├── config/                      # ⚙️ Configuration files
 │   ├── config.json              # Main configuration
-│   ├── claude_desktop_config.example.json   # Claude Desktop config
 │   ├── env.example              # Environment variables
 │   └── service-account.json     # GCP service account
-│
-├── tests/                       # 🧪 Tests
-│   ├── test_cleaning.py         # Unit tests
-│   ├── sample_raw.csv           # Sample raw data
-│   └── sample_aliases.csv       # Sample aliases
 │
 ├── logs/                        # 📊 Logs and outputs
 │   ├── clean_preview.csv        # Cleaned data (CSV)
 │   ├── clean_preview.json       # Cleaned data (JSON)
 │   ├── service_layer/           # Service layer data
 │   └── validation_report_*.txt  # Validation reports
+│
+├── examples/                    # 💡 Examples
+│   ├── mcp_client_example.py
+│   └── volunteer_analysis_examples.md
+│
+├── test_weekly_preview.py        # 🧪 Weekly preview test
+├── test_weekly_preview_manual.py # 🧪 Weekly preview manual test
 │
 ├── CHANGELOG.md                 # Version history
 ├── README.md                    # This file
@@ -515,41 +520,14 @@ python core/clean_pipeline.py --config config/config.json
 
 ## 🧪 Testing
 
-### Run Unit Tests
+### Run Smoke Tests
 
 ```bash
-# Run all tests
-pytest tests/test_cleaning.py -v
-
-# Run specific test class
-pytest tests/test_cleaning.py::TestCleaningRules -v
-
-# Run specific test method
-pytest tests/test_cleaning.py::TestCleaningRules::test_clean_date_formats -v
+python test_weekly_preview.py
+python test_weekly_preview_manual.py
 ```
 
-### Test Coverage
-
-Unit tests cover:
-
-- ✅ Date format cleaning and normalization
-- ✅ Text cleaning (spaces, placeholders)
-- ✅ Scripture reference formatting
-- ✅ Song splitting and deduplication
-- ✅ Column merging
-- ✅ Alias mapping
-- ✅ Data validation (required fields, date validity, duplicate detection)
-
-### Sample Data
-
-`tests/sample_raw.csv` includes various test scenarios:
-
-- Different date formats
-- Text with spaces
-- Multiple song delimiters
-- Alias names
-- Null values and placeholders
-- Invalid dates (for error handling tests)
+*(Note: The repo includes `pytest` as a dependency, but the primary automated checks currently live in the two scripts above.)*
 
 ---
 
@@ -574,7 +552,7 @@ Unit tests cover:
 - ❌ Never print sensitive tokens in logs
 
 **Secret Manager Support**:
-- All 3 Cloud Run services integrate with Secret Manager
+- Cloud Run services integrate with Secret Manager (API + MCP; weekly-preview service is optional)
 - All deployment scripts automatically read from Secret Manager
 - 4 secrets managed: `mcp-bearer-token`, `api-scheduler-token`, `weekly-preview-scheduler-token`, `weekly-preview-smtp-password`
 - Automatic token rotation support

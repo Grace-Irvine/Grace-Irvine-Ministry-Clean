@@ -13,7 +13,7 @@
 
 ## 📦 工具和资源
 
-### 9个工具（Tools）
+### 10个工具（Tools）
 1. `query_volunteers_by_date` - 查询指定日期的同工服侍
 2. `query_sermon_by_date` - 查询指定日期的证道信息
 3. `query_date_range` - 查询时间范围内的数据
@@ -23,6 +23,7 @@
 7. `sync_from_gcs` - 从云存储同步数据
 8. `check_upcoming_completeness` - 检查未来排班完整性
 9. `generate_weekly_preview` - 生成周报预览
+10. `get_volunteer_service_counts` - 生成同工服侍次数统计（支持按岗位筛选）
 
 ### 22个资源（Resources）
 - sermon相关：记录、按讲员查询、系列
@@ -40,11 +41,14 @@
 未设置 `PORT` 环境变量时默认使用此模式：
 
 ```bash
-# stdio 模式运行
-python mcp_server.py
+# 推荐：从项目根目录运行（指向 `mcp/mcp_server.py`）
+python mcp/mcp_server.py
+
+# 或者：进入本目录运行
+cd service && python mcp_server.py
 
 # 或显式禁用 PORT
-unset PORT && python mcp_server.py
+unset PORT && python mcp/mcp_server.py
 ```
 
 **Claude Desktop 配置：**
@@ -68,10 +72,10 @@ unset PORT && python mcp_server.py
 
 ```bash
 # HTTP 模式运行在 8080 端口
-PORT=8080 python mcp_server.py
+PORT=8080 python mcp/mcp_server.py
 
 # 或使用 --http 标志
-python mcp_server.py --http
+python mcp/mcp_server.py --http
 ```
 
 **使用 curl 测试：**
