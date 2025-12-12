@@ -16,7 +16,10 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 
 from fastmcp import FastMCP, Context
-from fastmcp.types import TextContent, ImageContent, EmbeddedResource
+try:
+    from fastmcp.types import TextContent, ImageContent, EmbeddedResource
+except ImportError:
+    from mcp.types import TextContent, ImageContent, EmbeddedResource
 from pydantic import BaseModel
 
 # 配置日志
@@ -314,8 +317,7 @@ def get_person_records(records: List[Dict], person_identifier: str) -> List[Dict
 # ============================================================
 
 mcp = FastMCP(
-    "ministry-data-mcp",
-    dependencies=["pandas", "google-auth", "google-api-python-client"]
+    "ministry-data-mcp"
 )
 
 # ============================================================
@@ -924,13 +926,47 @@ def generate_sunday_preview(date: str, format: str = "text") -> str:
 # Expose ASGI app for uvicorn workers (Cloud Run)
 # Common FastMCP patterns: .fastapi_app, .app, ._app, or the object itself
 try:
-    app = getattr(mcp, "fastapi_app", None)
+    # Check for http_app (seen in logs for FastMCP 2.14.0)
+    app = getattr(mcp, "http_app", None)
+    
+    # If http_app is a method (factory), call it to get the actual app instance
+    if app and callable(app) and hasattr(app, "__self__"): # Bound method check
+        try:
+            logger.info(f"Calling http_app method: {app}")
+            app = app()
+            logger.info(f"Resolved ASGI app from factory: {type(app)}")
+        except Exception as e:
+            logger.warning(f"Failed to call http_app method: {e}")
+
+    if not app:
+        app = getattr(mcp, "fastapi_app", None)
     if not app:
         app = getattr(mcp, "app", None)
     if not app:
         app = getattr(mcp, "_app", None)
     if not app and callable(mcp):
         app = mcp
+    
+    # Add health check endpoint if it's a FastAPI or Starlette app
+    if app:
+        try:
+            routes = [r.path for r in getattr(app, "routes", [])]
+            if "/health" not in routes:
+                if hasattr(app, "get"): # FastAPI
+                    @app.get("/health")
+                    async def health_check():
+                        return {"status": "ok"}
+                    logger.info("Added /health endpoint to FastAPI app")
+                elif hasattr(app, "add_route"): # Starlette
+                    from starlette.responses import JSONResponse
+                    async def health_check(request):
+                        return JSONResponse({"status": "ok"})
+                    app.add_route("/health", health_check, methods=["GET"])
+                    logger.info("Added /health endpoint to Starlette app")
+            else:
+                logger.info("/health endpoint already exists")
+        except Exception as e:
+            logger.warning(f"Failed to add /health endpoint: {e}")
     
     if app:
         logger.info(f"ASGI app exposed for uvicorn: {type(app)}")
@@ -944,6 +980,11 @@ if __name__ == "__main__":
     import uvicorn
     
     print("Starting mcp_server.py...", file=sys.stderr)
+    print(f"DEBUG: mcp type: {type(mcp)}", file=sys.stderr)
+    try:
+        print(f"DEBUG: mcp dir: {dir(mcp)}", file=sys.stderr)
+    except:
+        pass
     
     # 检查是否运行在 HTTP 模式 (Cloud Run 会设置 PORT)
     port = os.getenv("PORT")
@@ -953,18 +994,59 @@ if __name__ == "__main__":
             # HTTP/SSE 模式
             logger.info(f"Starting FastMCP Server in SSE mode on port {port}")
             
-            # Try to find the ASGI app to run with uvicorn directly
-            asgi_app = getattr(mcp, "fastapi_app", None) or getattr(mcp, "app", None) or getattr(mcp, "_app", None)
+            # Use the app resolved above (global scope) if available
+            asgi_app = app 
+            
+            if not asgi_app:
+                # Retry resolution logic (scoped)
+                asgi_app = getattr(mcp, "http_app", None)
+                if asgi_app and callable(asgi_app) and hasattr(asgi_app, "__self__"):
+                    try:
+                        asgi_app = asgi_app()
+                    except: pass
+                
+                if not asgi_app:
+                    asgi_app = getattr(mcp, "fastapi_app", None) or getattr(mcp, "app", None) or getattr(mcp, "_app", None)
             
             if asgi_app:
                 logger.info(f"Found underlying ASGI app: {type(asgi_app)}, running with uvicorn directly")
+                
+                # Try to add health check endpoint
+                try:
+                    # Check existing routes to avoid overwriting
+                    routes = [r.path for r in getattr(asgi_app, "routes", [])]
+                    if "/health" not in routes:
+                        if hasattr(asgi_app, "get"): # FastAPI
+                            @asgi_app.get("/health")
+                            async def health_check():
+                                return {"status": "ok"}
+                            logger.info("Added /health endpoint to FastAPI app (in main)")
+                        elif hasattr(asgi_app, "add_route"): # Starlette
+                            from starlette.responses import JSONResponse
+                            async def health_check(request):
+                                return JSONResponse({"status": "ok"})
+                            asgi_app.add_route("/health", health_check, methods=["GET"])
+                            logger.info("Added /health endpoint to Starlette app (in main)")
+                        else:
+                            logger.warning(f"Cannot add /health: app {type(asgi_app)} has neither .get nor .add_route")
+                    else:
+                        logger.info("/health endpoint already exists")
+                except Exception as e:
+                    logger.warning(f"Could not add /health endpoint: {e}")
+
                 uvicorn.run(asgi_app, host="0.0.0.0", port=int(port))
             else:
                 logger.info("Could not find ASGI app on mcp object, using mcp.run() with safe fallback")
                 try:
                     # Ensure host is "0.0.0.0" to listen on all interfaces
+                    # Check if kwargs are supported
+                    import inspect
+                    sig = inspect.signature(mcp.run)
+                    logger.info(f"DEBUG: mcp.run signature: {sig}")
+                    
                     mcp.run(transport="sse", port=int(port), host="0.0.0.0")
                 except TypeError as te:
+                    logger.error(f"Error calling mcp.run with host: {te}")
                     if "host" in str(te):
                         logger.warning("mcp.run does not accept 'host' argument. Trying without it.")
                         # Warning: This might bind to localhost only!
