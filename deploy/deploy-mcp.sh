@@ -199,7 +199,8 @@ echo -e "${GREEN}Deployment Summary${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo -e "Service URL: ${YELLOW}${SERVICE_URL}${NC}"
 echo -e "MCP Endpoints:"
-echo -e "  - SSE (for OpenAI): ${YELLOW}${SERVICE_URL}/sse${NC}"
+echo -e "  - SSE (preferred): ${YELLOW}${SERVICE_URL}/mcp${NC}"
+echo -e "  - SSE (compat alias): ${YELLOW}${SERVICE_URL}/sse${NC}"
 echo -e "  - Health Check: ${YELLOW}${SERVICE_URL}/health${NC}"
 echo ""
 
@@ -224,35 +225,35 @@ if [ -n "$MCP_BEARER_TOKEN" ]; then
     cat <<EOF
 
 Server Name: Ministry Data
-Server URL: ${SERVICE_URL}/sse
+Server URL: ${SERVICE_URL}/mcp
 Authentication: Bearer Token
 Token: ${MCP_BEARER_TOKEN}
 EOF
 
-    echo -e "\n${YELLOW}2. For curl testing (standard MCP SSE protocol):${NC}"
+    echo -e "\n${YELLOW}2. For curl testing (MCP SSE protocol):${NC}"
     cat <<EOF
 
-# Step 1: Establish SSE connection (GET /sse)
+# Step 1: Establish SSE connection (GET /mcp)
 curl -N \\
   -H "Authorization: Bearer ${MCP_BEARER_TOKEN}" \\
   -H "Accept: text/event-stream" \\
-  "${SERVICE_URL}/sse" &
+  "${SERVICE_URL}/mcp" &
 SSE_PID=\$!
 
-# Step 2: Send initialize message (POST /sse)
+# Step 2: Send initialize message (POST /mcp)
 sleep 1
 curl -X POST \\
   -H "Authorization: Bearer ${MCP_BEARER_TOKEN}" \\
   -H "Content-Type: application/json" \\
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \\
-  "${SERVICE_URL}/sse"
+  "${SERVICE_URL}/mcp"
 
 # Step 3: Send list tools message
 curl -X POST \\
   -H "Authorization: Bearer ${MCP_BEARER_TOKEN}" \\
   -H "Content-Type: application/json" \\
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \\
-  "${SERVICE_URL}/sse"
+  "${SERVICE_URL}/mcp"
 
 # Cleanup
 kill \$SSE_PID 2>/dev/null || true

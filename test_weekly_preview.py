@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Configuration
-MCP_SERVER_URL = "https://ministry-data-mcp-wu7uk5rgdq-uc.a.run.app/sse"
+MCP_SERVER_URL = "https://ministry-data-mcp-wu7uk5rgdq-uc.a.run.app/mcp"
 
 async def get_token():
     try:

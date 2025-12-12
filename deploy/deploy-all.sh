@@ -120,7 +120,8 @@ echo -e "  2. ${GREEN}MCP服务${NC} - $MCP_SERVICE_NAME"
 echo -e "     提供AI助手集成（MCP协议）"
 if [ -n "$MCP_URL" ]; then
     echo -e "     URL: ${YELLOW}${MCP_URL}${NC}"
-    echo -e "     SSE端点: ${YELLOW}${MCP_URL}/sse${NC}"
+    echo -e "     MCP端点(HTTP/SSE): ${YELLOW}${MCP_URL}/mcp${NC}"
+    echo -e "     兼容端点(legacy): ${YELLOW}${MCP_URL}/sse${NC}"
     echo -e "     健康检查: ${YELLOW}${MCP_URL}/health${NC}"
 fi
 echo -e ""
@@ -155,7 +156,7 @@ if [ -n "$API_URL" ]; then
 fi
 if [ -n "$MCP_URL" ]; then
     echo -e "  2. 配置OpenAI ChatGPT MCP集成:"
-    echo -e "     Server URL: ${MCP_URL}/sse"
+    echo -e "     Server URL: ${MCP_URL}/mcp"
     echo -e "     (需要Bearer Token进行认证)"
 fi
 echo -e "  3. 查看Cloud Run控制台:"

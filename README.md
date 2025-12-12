@@ -192,7 +192,7 @@ python mcp/mcp_server.py
 - 9 tools for data operations
 - 22+ resources for data access
 
-👉 **See**: [MCP Server Documentation](mcp/README.md)
+👉 **See**: [MCP Server Documentation](service/README.md)
 
 ---
 
@@ -252,7 +252,7 @@ export GCP_PROJECT_ID=your-project-id
 
 ## 📚 Additional Resources
 
-- **MCP Server Guide**: See `mcp/README.md` for complete MCP usage guide
+- **MCP Server Guide**: See `service/README.md` for complete MCP usage guide
 - **API Documentation**: Interactive API docs available at `/docs` endpoint when running locally
 - **Deployment Scripts**: See `deploy/` directory for deployment automation
 

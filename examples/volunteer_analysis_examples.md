@@ -343,7 +343,7 @@
 
 - [同工分析提示词完整指南](../VOLUNTEER_ANALYSIS_PROMPTS.md)
 - [MCP 快速开始](../QUICKSTART_MCP.md)
-- [MCP 服务器文档](../mcp/README.md)
+- [MCP 服务器文档](../service/README.md)
 - [主README](../README.md)
 
 ---
