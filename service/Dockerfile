@@ -24,7 +24,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 复制项目文件
-COPY mcp/ /app/mcp/
+COPY service/ /app/service/
 COPY core/ /app/core/
 COPY config/ /app/config/
 
@@ -38,5 +38,5 @@ ENV GOOGLE_APPLICATION_CREDENTIALS=/app/config/service-account.json
 EXPOSE 8080
 
 # 启动统一的MCP服务器 (使用 uvicorn 直接启动，更可靠)
-CMD ["uvicorn", "mcp.mcp_server:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "service/mcp_server.py"]
 
