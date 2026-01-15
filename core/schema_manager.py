@@ -271,17 +271,42 @@ class SchemaManager:
         import re
         base_name = re.sub(r'\d+$', '', source_column)
         
-        # 转换为英文（简单映射）
+        # 转换为英文（与原始表格岗位一致）
         name_map = {
-            '助教': 'assistant',
-            '同工': 'team_member',
-            '敬拜': 'worship',
-            '司琴': 'pianist',
-            '音控': 'audio',
-            '导播': 'video',
-            '摄影': 'photographer',
+            '主日日期': 'service_date',
+            '讲道系列': 'series',
+            '讲道标题': 'sermon_title',
+            '经文': 'scripture',
+            '要理问答': 'catechism',
             '讲员': 'preacher',
             '读经': 'reading',
+            '敬拜带领': 'worship_lead',
+            '敬拜同工1': 'worship_team_1',
+            '敬拜同工2': 'worship_team_2',
+            '司琴': 'pianist',
+            '詩歌': 'songs',
+            '歌单列表': 'songs',
+            '音控': 'audio',
+            '导播/摄影': 'video',
+            '导播': 'video',
+            'ProPresenter 播放': 'propresenter_play',
+            'ProPresenter播放': 'propresenter_play',
+            'ProPresenter 更新': 'propresenter_update',
+            'ProPresenter更新': 'propresenter_update',
+            '视频剪辑': 'video_editor',
+            '周五老师': 'friday_child_ministry',
+            '周五团契老师': 'friday_child_ministry',
+            '周日助教1': 'sunday_child_assistant_1',
+            '周日助教2': 'sunday_child_assistant_2',
+            '周日助教3': 'sunday_child_assistant_3',
+            '新人接待1': 'newcomer_reception_1',
+            '新人接待2': 'newcomer_reception_2',
+            '招待同工1': 'newcomer_reception_1',
+            '招待同工2': 'newcomer_reception_2',
+            '周五饭食预备': 'friday_meal',
+            '祷告会带领': 'prayer_lead',
+            '拖车运输': 'trailer_transport',
+            '额外场地布置': 'extra_venue_setup',
         }
         
         for cn, en in name_map.items():
@@ -336,8 +361,8 @@ class SchemaManager:
         """
         # 从映射中提取角色字段（排除非角色字段如 service_date, sermon_title 等）
         non_role_fields = {
-            'service_date', 'series', 'sermon_title', 'scripture', 
-            'catechism', 'reading', 'songs', 'notes'
+            'service_date', 'series', 'sermon_title', 'scripture',
+            'catechism', 'songs', 'notes'
         }
         
         role_fields = []
