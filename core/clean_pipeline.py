@@ -38,33 +38,15 @@ logger = logging.getLogger(__name__)
 class CleaningPipeline:
     """数据清洗管线"""
     
-    # 目标输出字段顺序
-    OUTPUT_SCHEMA = [
-        'service_date', 'service_week', 'service_slot',
-        'sermon_title', 'series', 'scripture',
-        'preacher_id', 'preacher_name', 'preacher_department',
+    BASE_FIELDS = {
+        'service_date',
+        'series',
+        'sermon_title',
+        'scripture',
         'catechism',
-        'reading_id', 'reading_name', 'reading_department',
-        'worship_lead_id', 'worship_lead_name', 'worship_lead_department',
-        'worship_team_1_id', 'worship_team_1_name', 'worship_team_1_department',
-        'worship_team_2_id', 'worship_team_2_name', 'worship_team_2_department',
-        'pianist_id', 'pianist_name', 'pianist_department',
         'songs',
-        'audio_id', 'audio_name', 'audio_department',
-        'video_id', 'video_name', 'video_department',
-        'propresenter_play_id', 'propresenter_play_name', 'propresenter_play_department',
-        'propresenter_update_id', 'propresenter_update_name', 'propresenter_update_department',
-        'video_editor_id', 'video_editor_name', 'video_editor_department',
-        'friday_child_ministry_id', 'friday_child_ministry_name', 'friday_child_ministry_department',
-        'sunday_child_assistant_1_id', 'sunday_child_assistant_1_name', 'sunday_child_assistant_1_department',
-        'sunday_child_assistant_2_id', 'sunday_child_assistant_2_name', 'sunday_child_assistant_2_department',
-        'sunday_child_assistant_3_id', 'sunday_child_assistant_3_name', 'sunday_child_assistant_3_department',
-        'newcomer_reception_1_id', 'newcomer_reception_1_name', 'newcomer_reception_1_department',
-        'newcomer_reception_2_id', 'newcomer_reception_2_name', 'newcomer_reception_2_department',
-        'friday_meal_id', 'friday_meal_name', 'friday_meal_department',
-        'prayer_lead_id', 'prayer_lead_name', 'prayer_lead_department',
-        'notes', 'source_row', 'updated_at'
-    ]
+        'notes',
+    }
     
     def __init__(self, config_path: str):
         """
@@ -82,6 +64,11 @@ class CleaningPipeline:
         
         # 存储部门映射信息
         self.department_map = {}
+        self.field_department_map = {}
+        
+        # 动态角色字段与输出 Schema
+        self.role_fields = self._build_role_fields()
+        self.output_schema = self._build_output_schema()
         
         # 加载别名映射
         self._load_aliases()
@@ -112,6 +99,52 @@ class CleaningPipeline:
             )
         except Exception as e:
             logger.warning(f"加载别名映射失败: {e}，将使用默认 ID 生成")
+
+    def _build_role_fields(self) -> List[str]:
+        """
+        从配置中构建角色字段列表（按配置顺序）
+        """
+        role_fields = []
+        for field_name in self.schema_manager.column_configs.keys():
+            if field_name.startswith('_'):
+                continue
+            if field_name in self.BASE_FIELDS:
+                continue
+            role_fields.append(field_name)
+        return role_fields
+
+    def _build_output_schema(self) -> List[str]:
+        """
+        根据配置动态生成输出字段顺序
+        """
+        schema: List[str] = []
+        
+        # 先放服务日期及衍生字段
+        if 'service_date' in self.schema_manager.column_configs:
+            schema.extend(['service_date', 'service_week', 'service_slot'])
+        
+        for field_name in self.schema_manager.column_configs.keys():
+            if field_name.startswith('_'):
+                continue
+            if field_name == 'service_date':
+                continue
+            
+            if field_name in self.BASE_FIELDS:
+                schema.append(field_name)
+                continue
+            
+            schema.extend([
+                f"{field_name}_id",
+                f"{field_name}_name",
+                f"{field_name}_department"
+            ])
+        
+        # 追加运行时字段
+        for col in ['notes', 'source_row', 'updated_at']:
+            if col not in schema:
+                schema.append(col)
+        
+        return schema
     
     def read_source_data(self) -> pd.DataFrame:
         """读取原始数据"""
@@ -128,6 +161,13 @@ class CleaningPipeline:
                 return_department_info=True
             )
             logger.info(f"检测到部门信息: {len(self.department_map)} 列有部门标注")
+            
+            # 构建标准字段名到部门的映射
+            self.field_department_map = {}
+            for source_col, dept in self.department_map.items():
+                field_name = self.schema_manager.get_standard_field_name(source_col)
+                if field_name and dept:
+                    self.field_department_map[field_name] = dept
         else:
             df = self.gsheet_client.read_range(
                 source_config['url'],
@@ -287,149 +327,18 @@ class CleaningPipeline:
         # 要理问答
         cleaned['catechism'] = self.cleaning_rules.clean_text(row.get('catechism'))
         
-        # 读经（作为人名字段，带别名映射）
-        reading_name = self.cleaning_rules.clean_name(row.get('reading'))
-        reading_id, reading_display = self.alias_mapper.resolve(reading_name)
-        cleaned['reading_id'] = reading_id
-        cleaned['reading_name'] = reading_display
-        cleaned['reading_department'] = self.schema_manager.get_department('reading') or ''
-        
-        # 讲员（带别名映射）
-        preacher_name = self.cleaning_rules.clean_name(row.get('preacher'))
-        preacher_id, preacher_display = self.alias_mapper.resolve(preacher_name)
-        cleaned['preacher_id'] = preacher_id
-        cleaned['preacher_name'] = preacher_display
-        cleaned['preacher_department'] = self.schema_manager.get_department('preacher') or ''
-        
-        # 敬拜带领
-        worship_lead_name = self.cleaning_rules.clean_name(row.get('worship_lead'))
-        worship_lead_id, worship_lead_display = self.alias_mapper.resolve(worship_lead_name)
-        cleaned['worship_lead_id'] = worship_lead_id
-        cleaned['worship_lead_name'] = worship_lead_display
-        cleaned['worship_lead_department'] = self.schema_manager.get_department('worship_lead') or ''
-        
-        # 敬拜同工1
-        worship_team_1_name = self.cleaning_rules.clean_name(row.get('worship_team_1'))
-        worship_team_1_id, worship_team_1_display = self.alias_mapper.resolve(worship_team_1_name)
-        cleaned['worship_team_1_id'] = worship_team_1_id
-        cleaned['worship_team_1_name'] = worship_team_1_display
-        cleaned['worship_team_1_department'] = self.schema_manager.get_department('worship_team_1') or ''
-        
-        # 敬拜同工2
-        worship_team_2_name = self.cleaning_rules.clean_name(row.get('worship_team_2'))
-        worship_team_2_id, worship_team_2_display = self.alias_mapper.resolve(worship_team_2_name)
-        cleaned['worship_team_2_id'] = worship_team_2_id
-        cleaned['worship_team_2_name'] = worship_team_2_display
-        cleaned['worship_team_2_department'] = self.schema_manager.get_department('worship_team_2') or ''
-        
-        # 司琴
-        pianist_name = self.cleaning_rules.clean_name(row.get('pianist'))
-        pianist_id, pianist_display = self.alias_mapper.resolve(pianist_name)
-        cleaned['pianist_id'] = pianist_id
-        cleaned['pianist_name'] = pianist_display
-        cleaned['pianist_department'] = self.schema_manager.get_department('pianist') or ''
-        
         # 歌曲（拆分为列表）
         songs_list = self.cleaning_rules.split_songs(row.get('songs'))
         cleaned['songs'] = json.dumps(songs_list, ensure_ascii=False) if songs_list else ''
         
-        # 音控
-        audio_name = self.cleaning_rules.clean_name(row.get('audio'))
-        audio_id, audio_display = self.alias_mapper.resolve(audio_name)
-        cleaned['audio_id'] = audio_id
-        cleaned['audio_name'] = audio_display
-        cleaned['audio_department'] = self.schema_manager.get_department('audio') or ''
-        
-        # 导播/摄影
-        video_name = self.cleaning_rules.clean_name(row.get('video'))
-        video_id, video_display = self.alias_mapper.resolve(video_name)
-        cleaned['video_id'] = video_id
-        cleaned['video_name'] = video_display
-        cleaned['video_department'] = self.schema_manager.get_department('video') or ''
-        
-        # ProPresenter 播放
-        pp_play_name = self.cleaning_rules.clean_name(row.get('propresenter_play'))
-        pp_play_id, pp_play_display = self.alias_mapper.resolve(pp_play_name)
-        cleaned['propresenter_play_id'] = pp_play_id
-        cleaned['propresenter_play_name'] = pp_play_display
-        cleaned['propresenter_play_department'] = self.schema_manager.get_department('propresenter_play') or ''
-        
-        # ProPresenter 更新
-        pp_update_name = self.cleaning_rules.clean_name(row.get('propresenter_update'))
-        pp_update_id, pp_update_display = self.alias_mapper.resolve(pp_update_name)
-        cleaned['propresenter_update_id'] = pp_update_id
-        cleaned['propresenter_update_name'] = pp_update_display
-        cleaned['propresenter_update_department'] = self.schema_manager.get_department('propresenter_update') or ''
-        
-        # 视频编辑
-        video_editor_name = self.cleaning_rules.clean_name(row.get('video_editor'))
-        video_editor_id, video_editor_display = self.alias_mapper.resolve(video_editor_name)
-        cleaned['video_editor_id'] = video_editor_id
-        cleaned['video_editor_name'] = video_editor_display
-        cleaned['video_editor_department'] = self.schema_manager.get_department('video_editor') or ''
-        
-        # 周五老师
-        friday_child_ministry_name = self.cleaning_rules.clean_name(row.get('friday_child_ministry'))
-        friday_child_ministry_id, friday_child_ministry_display = self.alias_mapper.resolve(friday_child_ministry_name)
-        cleaned['friday_child_ministry_id'] = friday_child_ministry_id
-        cleaned['friday_child_ministry_name'] = friday_child_ministry_display
-        cleaned['friday_child_ministry_department'] = self.schema_manager.get_department('friday_child_ministry') or ''
-        
-        # 周日助教1
-        sunday_child_assistant_1_name = self.cleaning_rules.clean_name(row.get('sunday_child_assistant_1'))
-        sunday_child_assistant_1_id, sunday_child_assistant_1_display = self.alias_mapper.resolve(sunday_child_assistant_1_name)
-        cleaned['sunday_child_assistant_1_id'] = sunday_child_assistant_1_id
-        cleaned['sunday_child_assistant_1_name'] = sunday_child_assistant_1_display
-        cleaned['sunday_child_assistant_1_department'] = self.schema_manager.get_department('sunday_child_assistant_1') or ''
-        
-        # 周日助教2
-        sunday_child_assistant_2_name = self.cleaning_rules.clean_name(row.get('sunday_child_assistant_2'))
-        sunday_child_assistant_2_id, sunday_child_assistant_2_display = self.alias_mapper.resolve(sunday_child_assistant_2_name)
-        cleaned['sunday_child_assistant_2_id'] = sunday_child_assistant_2_id
-        cleaned['sunday_child_assistant_2_name'] = sunday_child_assistant_2_display
-        cleaned['sunday_child_assistant_2_department'] = self.schema_manager.get_department('sunday_child_assistant_2') or ''
-        
-        # 周日助教3
-        sunday_child_assistant_3_name = self.cleaning_rules.clean_name(row.get('sunday_child_assistant_3'))
-        sunday_child_assistant_3_id, sunday_child_assistant_3_display = self.alias_mapper.resolve(sunday_child_assistant_3_name)
-        cleaned['sunday_child_assistant_3_id'] = sunday_child_assistant_3_id
-        cleaned['sunday_child_assistant_3_name'] = sunday_child_assistant_3_display
-        cleaned['sunday_child_assistant_3_department'] = self.schema_manager.get_department('sunday_child_assistant_3') or ''
-        
-        # 新人接待1
-        newcomer_reception_1_name = self.cleaning_rules.clean_name(row.get('newcomer_reception_1'))
-        newcomer_reception_1_id, newcomer_reception_1_display = self.alias_mapper.resolve(newcomer_reception_1_name)
-        cleaned['newcomer_reception_1_id'] = newcomer_reception_1_id
-        cleaned['newcomer_reception_1_name'] = newcomer_reception_1_display
-        cleaned['newcomer_reception_1_department'] = self.schema_manager.get_department('newcomer_reception_1') or ''
-        
-        # 新人接待2
-        newcomer_reception_2_name = self.cleaning_rules.clean_name(row.get('newcomer_reception_2'))
-        newcomer_reception_2_id, newcomer_reception_2_display = self.alias_mapper.resolve(newcomer_reception_2_name)
-        cleaned['newcomer_reception_2_id'] = newcomer_reception_2_id
-        cleaned['newcomer_reception_2_name'] = newcomer_reception_2_display
-        cleaned['newcomer_reception_2_department'] = self.schema_manager.get_department('newcomer_reception_2') or ''
-                
-        # 饭食组
-        meal_group_name = self.cleaning_rules.clean_name(row.get('meal_group'))
-        meal_group_id, meal_group_display = self.alias_mapper.resolve(meal_group_name)
-        cleaned['meal_group_id'] = meal_group_id
-        cleaned['meal_group_name'] = meal_group_display
-        cleaned['meal_group_department'] = self.schema_manager.get_department('meal_group') or ''
-        
-        # 周五饭食
-        friday_meal_name = self.cleaning_rules.clean_name(row.get('friday_meal'))
-        friday_meal_id, friday_meal_display = self.alias_mapper.resolve(friday_meal_name)
-        cleaned['friday_meal_id'] = friday_meal_id
-        cleaned['friday_meal_name'] = friday_meal_display
-        cleaned['friday_meal_department'] = self.schema_manager.get_department('friday_meal') or ''
-        
-        # 祷告会带领
-        prayer_lead_name = self.cleaning_rules.clean_name(row.get('prayer_lead'))
-        prayer_lead_id, prayer_lead_display = self.alias_mapper.resolve(prayer_lead_name)
-        cleaned['prayer_lead_id'] = prayer_lead_id
-        cleaned['prayer_lead_name'] = prayer_lead_display
-        cleaned['prayer_lead_department'] = self.schema_manager.get_department('prayer_lead') or ''
+        # 角色字段（带别名映射）
+        for role_field in self.role_fields:
+            role_name = self.cleaning_rules.clean_name(row.get(role_field))
+            role_id, role_display = self.alias_mapper.resolve(role_name)
+            cleaned[f"{role_field}_id"] = role_id
+            cleaned[f"{role_field}_name"] = role_display
+            dept = self.schema_manager.get_department(role_field) or self.field_department_map.get(role_field, '')
+            cleaned[f"{role_field}_department"] = dept
         
         # 备注
         cleaned['notes'] = self.cleaning_rules.clean_text(row.get('notes', ''))
@@ -442,12 +351,12 @@ class CleaningPipeline:
     def _ensure_schema(self, df: pd.DataFrame) -> pd.DataFrame:
         """确保 DataFrame 符合输出 Schema"""
         # 添加缺失的列
-        for col in self.OUTPUT_SCHEMA:
+        for col in self.output_schema:
             if col not in df.columns:
                 df[col] = ''
         
         # 按指定顺序重排列
-        df = df[self.OUTPUT_SCHEMA]
+        df = df[self.output_schema]
         
         return df
     
@@ -471,13 +380,11 @@ class CleaningPipeline:
                 return
             
             # 获取角色字段列表
-            role_fields = alias_config.get('role_fields', [
-                'preacher', 'reading', 'worship_lead', 'worship_team_1', 'worship_team_2',
-                'pianist', 'audio', 'video', 'propresenter_play', 'propresenter_update',
-                'video_editor', 'friday_child_ministry', 'sunday_child_assistant_1', 'sunday_child_assistant_2', 'sunday_child_assistant_3',
-                'newcomer_reception_1', 'newcomer_reception_2',
-                'meal_group', 'friday_meal', 'prayer_lead'
-            ])
+            role_fields = alias_config.get('role_fields')
+            if role_fields:
+                role_fields = list(dict.fromkeys(role_fields + self.role_fields))
+            else:
+                role_fields = self.role_fields
             
             # 1. 从清洗后的数据中提取所有人名及其出现次数
             names_counter = self.alias_mapper.extract_names_from_cleaned_data(
