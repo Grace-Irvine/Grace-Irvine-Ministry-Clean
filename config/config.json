@@ -99,8 +99,20 @@
       "merge": true,
       "department": "technical"
     },
-    "propresenter_play": "ProPresenter 播放+场地布置",
-    "propresenter_update": "ProPresenter 更新",
+    "propresenter_play": {
+      "sources": [
+        "ProPresenter播放",
+        "ProPresenter 播放"
+      ],
+      "merge": true
+    },
+    "propresenter_update": {
+      "sources": [
+        "ProPresenter更新",
+        "ProPresenter 更新"
+      ],
+      "merge": true
+    },
     "video_editor": "视频剪辑",
     "trailer_transport": "拖车运输",
     "extra_venue_setup": "额外场地布置",
@@ -112,8 +124,20 @@
       "merge": true,
       "department": "education"
     },
-    "sunday_child_assistant_1": "周日助教1",
-    "sunday_child_assistant_2": "周日助教2",
+    "sunday_teacher": "周日老师",
+    "sunday_child_assistant_1": {
+      "sources": [
+        "周日助教",
+        "周日助教1"
+      ],
+      "merge": true
+    },
+    "sunday_child_assistant_2": {
+      "sources": [
+        "周日助教2"
+      ],
+      "merge": true
+    },
     "sunday_child_assistant_3": "周日助教3",
     "newcomer_reception_1": {
       "sources": [
