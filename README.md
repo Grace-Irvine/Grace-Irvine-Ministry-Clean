@@ -1,632 +1,156 @@
-# Grace Irvine Ministry Data Management System
+# Grace Irvine Ministry Clean
 
-> **Language / 语言**: [English](README.md) | [中文](README_CH.md)
+The data backbone behind [Grace Irvine Ministry UI](https://github.com/Grace-Irvine/Grace-Irvine-Ministry-UI). This pipeline reads raw ministry data from Google Sheets, cleans and transforms it into structured domain models, and stores the results in Google Cloud Storage — where the MCP server picks it up to power the church's AI assistant.
 
-[![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.118+-green.svg)](https://fastapi.tiangolo.com/)
-[![MCP](https://img.shields.io/badge/MCP-1.16+-purple.svg)](https://modelcontextprotocol.io/)
-[![FastMCP](https://img.shields.io/badge/FastMCP-2.0+-orange.svg)](https://github.com/modelcontextprotocol/python-sdk)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+**Ministry leaders just maintain their familiar Google Sheets. The AI stays accurate automatically.**
 
-A complete church ministry data management system featuring intelligent data cleaning, domain model transformation, RESTful API, and **AI Assistant Integration via Model Context Protocol (MCP)**.
-
----
-
-## Table of Contents
-
-- [✨ Overview](#-overview)
-- [🏗️ Architecture](#️-architecture)
-- [🚀 Quick Start](#-quick-start)
-- [📚 Documentation](#-documentation)
-- [🔑 Key Features](#-key-features)
-- [🛠️ Technology Stack](#️-technology-stack)
-- [📦 Project Structure](#-project-structure)
-- [💡 Usage Examples](#-usage-examples)
-- [🧪 Testing](#-testing)
-- [🤝 Contributing](#-contributing)
-
----
-
-## ✨ Overview
-
-The **Grace Irvine Ministry Data Management System** is a production-ready, AI-native application designed to:
-
-1. **Clean and standardize** raw ministry data from Google Sheets
-2. **Transform** flat data into structured domain models (Sermon + Volunteer domains)
-3. **Serve** data via RESTful API endpoints for analytics and applications
-4. **Enable AI integration** through the Model Context Protocol (MCP) - **Now powered by FastMCP 2.0!**
-5. **Deploy seamlessly** to Google Cloud Run with automated scheduling
-
-### What Makes This Special?
-
-- **🤖 AI-Native Design**: Built-in MCP server for natural language queries with Claude, ChatGPT, and other AI assistants
-- **⚡ FastMCP 2.0 Integration**: Leveraging the latest MCP SDK for simplified tooling, improved performance, and cleaner architecture
-- **🏗️ Clean Architecture**: 2-layer design (cleaning + service layer) with 80%+ code reuse
-- **☁️ Cloud-Ready**: Containerized microservices, auto-scaling, minimal cost (~$1/month)
-- **⚡ Smart Optimization**: Change detection, parallel processing, incremental updates
-- **📦 Packable**: One-click installation to Claude Desktop via MCPB package
-
----
-
-## 🏗️ Architecture
-
-### Monorepo with Independent Microservices
+## How It Fits Together
 
 ```
-Grace-Irvine-Ministry-Clean/
-├── api/          # API Service - Data cleaning & REST API (FastAPI)
-├── mcp/          # MCP Service - AI assistant integration (FastMCP 2.0)
-├── core/         # Shared business logic (80%+ code reuse)
-├── deploy/       # Deployment scripts
-└── config/       # Configuration files
+┌──────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Google Sheets   │     │  Ministry-Clean   │     │   GCS Bucket    │
+│  (raw ministry    │────▶│  (this repo)      │────▶│  (structured    │
+│   data, managed   │     │                   │     │   domain JSON)  │
+│   by church staff)│     │  Extract → Clean  │     │                 │
+└──────────────────┘     │  → Transform →    │     └────────┬────────┘
+                          │    Upload         │              │
+                          └──────────────────┘              │
+                                                             ▼
+┌──────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Ministry UI     │◀────│   Gemini AI      │◀────│   MCP Server    │
+│  (Next.js chat)   │     │  (function calls) │     │  (reads GCS)    │
+│                   │     │                   │     │                 │
+│  "Who preached    │     │  Calls MCP tools  │     │  query_sermon   │
+│   last Sunday?"   │     │  for real data    │     │  query_volunteer│
+└──────────────────┘     └──────────────────┘     └─────────────────┘
 ```
 
-### Two Independent Services
+## What This Repo Does
 
-| Service               | Purpose                                            | Tech Stack        | Port | Deployment |
-| --------------------- | -------------------------------------------------- | ----------------- | ---- | ---------- |
-| **API Service** | Data cleaning, REST API, statistics                | FastAPI + Uvicorn | 8080 | Cloud Run  |
-| **MCP Service** | AI assistant integration, natural language queries | FastMCP 2.0       | 8080 | Cloud Run  |
+1. **Extract** — Connects to Google Sheets via the Sheets API and reads raw ministry records (sermons, worship songs, volunteer schedules)
+2. **Clean** — Normalizes dates, strips whitespace, resolves name aliases (e.g., "小明" → "Zhang Xiaoming"), validates scripture references, splits song lists by Chinese/English delimiters
+3. **Transform** — Converts flat spreadsheet rows into structured domain models: `SermonDomain`, `VolunteerDomain`, `WorshipDomain` — each with metadata, date ranges, and record counts
+4. **Store** — Uploads domain JSON files to a GCS bucket (`domains/sermon/latest.json`, `domains/volunteer/latest.json`, `domains/worship/latest.json`) with optional yearly/quarterly snapshots
 
-Both services can run **independently** while sharing the `core/` business logic.
+## Data Domains
 
-### 2-Layer Clean Architecture
+| Domain | Source Sheet | What's Captured | Output |
+|---|---|---|---|
+| **Sermon** | Weekly service log | Date, speaker, title, scripture, series, catechism | `domains/sermon/latest.json` |
+| **Worship** | Weekly service log | Songs, worship leader, pianist, per-service history | `domains/worship/latest.json` |
+| **Volunteer** | Weekly service log | All ministry roles per Sunday — sound, projection, ushers, communion, etc. | `domains/volunteer/latest.json` |
 
-#### Layer 1: Cleaning Layer
+Each domain file contains:
+- `metadata` — domain name, version, generation timestamp, record count, date range
+- `sermons` / `volunteers` / `services` — the actual records as structured JSON arrays
 
-**Purpose**: Standardize raw data from Google Sheets
+## MCP Server
 
-**File**: [core/clean_pipeline.py](core/clean_pipeline.py)
+This repo also includes a full **MCP (Model Context Protocol) server** built with [FastMCP 2.0](https://github.com/jlowin/fastmcp), deployable as a Cloud Run service. It reads from GCS and exposes tools that the AI assistant calls:
 
-**Transformations**:
+| MCP Tool | What It Does |
+|---|---|
+| `query_sermon_by_date` | Look up sermon details for a specific Sunday |
+| `query_volunteers_by_date` | Who served on a given date |
+| `query_date_range` | Query sermons and/or volunteers across a date range |
+| `get_sermons_by_preacher` | All sermons by a specific speaker |
+| `get_sermon_series` | List all sermon series with episode counts |
+| `get_volunteer_service_counts` | Service frequency stats by volunteer and role |
+| `get_volunteer_assignments` | Full volunteer roster and roles |
+| `generate_weekly_preview` | Generate a preview of next Sunday's service plan |
 
-- Date normalization (multiple formats → YYYY-MM-DD)
-- Text cleaning (strip spaces, handle placeholders)
-- Alias mapping (multiple names → unified person_id) - *Refined in v4.3.0 for better accuracy*
-- Song splitting (multiple delimiters)
-- Scripture formatting (add space between book and chapter)
-- Column merging (worship_team_1 + worship_team_2 → worship_team list)
-- **New Departments**: Meal Group (饭食组) and Prayer Department (祷告部)
-- Data validation (required fields, duplicates, format checks)
+When a church member asks the AI *"How many times has Brother Wang served on sound this year?"*, Gemini calls `get_volunteer_service_counts` → MCP reads from GCS → returns structured data → Gemini formats a natural language answer.
 
-**Output**: 29-field standardized schema written to Google Sheets "CleanData" tab
+## Why Google Sheets?
 
-#### Layer 2: Service Layer
+Church volunteers are not engineers. They already know how to use spreadsheets. This pipeline meets them where they are:
 
-**Purpose**: Transform flat cleaned data into structured domain models
+- **No new tools to learn** — Ministry coordinators keep updating the same Google Sheet they've always used
+- **Automatic sync** — The cleaning pipeline runs on schedule, keeping the AI's knowledge current
+- **Error tolerance** — The cleaning layer handles messy real-world data: inconsistent date formats, extra spaces, name variations, mixed Chinese/English delimiters
+- **Alias resolution** — Maps informal names and nicknames to canonical identities across the entire dataset
 
-**File**: [core/service_layer.py](core/service_layer.py)
-
-**Domains**:
-
-1. **Sermon Domain** - Sermon metadata with preacher and songs
-
-   ```json
-   {
-     "service_date": "2024-01-07",
-     "sermon": {
-       "title": "Gospel Series Part 1",
-       "series": "Encountering Jesus",
-       "scripture": "Genesis 3"
-     },
-     "preacher": {"id": "person_6511_wangtong", "name": "Wang Tong"},
-     "songs": ["Amazing Grace", "Assurance"]
-   }
-   ```
-   *(Note: When IDs are excluded, objects like `preacher` are flattened to simple strings if they only contain a name)*
-
-2. **Volunteer Domain** - Volunteer assignments by role
-
-   ```json
-   {
-     "service_date": "2024-01-07",
-     "worship": {
-       "lead": {"id": "person_xiem", "name": "Xie Miao"},
-       "team": [{"id": "person_quixiaohuan", "name": "Qu Xiaohuan"}],
-       "pianist": {"id": "person_shawn", "name": "Shawn"}
-     },
-     "technical": {
-       "audio": {"id": "person_3850_jingzheng", "name": "Jing Zheng"},
-       "video": {"id": "person_2012_junxin", "name": "Jun Xin"}
-     }
-   }
-   ```
-
-**Output**: JSON files organized by domain and year, optionally uploaded to Google Cloud Storage
-
-### Complete Data Flow
+## Project Structure
 
 ```
-Raw Data (Google Sheets)
-    ↓
-Cleaning Pipeline
-    ├── Date normalization
-    ├── Text cleanup
-    ├── Alias mapping
-    ├── Song splitting
-    └── Validation
-    ↓
-Cleaned Data (Google Sheets + Local JSON/CSV)
-    ↓
-Service Layer Transformer
-    ├── Sermon Domain Model
-    └── Volunteer Domain Model
-    ↓
-Domain Storage
-    ├── Local: logs/service_layer/{domain}_latest.json
-    ├── Yearly: logs/service_layer/{year}/{domain}_{year}.json
-    └── Cloud: gs://bucket/domains/{domain}/{files}
-    ↓
-Access Layer
-    ├── REST API (api/app.py)
-    ├── MCP Resources (mcp/mcp_server.py)
-    └── AI Assistants (Claude, ChatGPT)
+├── core/                    # Core pipeline modules
+│   ├── clean_pipeline.py    # Main cleaning orchestrator
+│   ├── gsheet_utils.py      # Google Sheets API client
+│   ├── cleaning_rules.py    # Data normalization rules
+│   ├── alias_utils.py       # Name alias resolution
+│   ├── validators.py        # Data validation
+│   ├── service_layer.py     # Domain model transformers
+│   ├── cloud_storage_utils.py  # GCS upload client
+│   ├── schema_manager.py    # Dynamic schema detection
+│   └── change_detector.py   # Incremental change detection
+├── mcp/                     # MCP server (Cloud Run)
+│   ├── mcp_server.py        # FastMCP 2.0 server with all tools
+│   └── Dockerfile
+├── api/                     # REST API (Cloud Run)
+│   ├── app.py               # Flask API for direct data access
+│   └── Dockerfile
+├── service/                 # Scheduler service
+│   └── mcp_server.py        # Scheduled cleaning + MCP
+├── config/
+│   ├── config.json          # Pipeline configuration
+│   └── env.example          # Environment variable template
+└── deploy/                  # Cloud Build configs
 ```
 
----
+## Setup
 
-## 🚀 Quick Start
+### Prerequisites
 
-### Option 1: AI Assistant Integration (Recommended) 🤖
+- Python 3.10+
+- Google Cloud project with Sheets API and Cloud Storage enabled
+- Service account with access to your Sheets and GCS bucket
 
-Integrate with Claude Desktop or ChatGPT using the MCP protocol:
-
-**For Claude Desktop (stdio mode)**:
+### Local Development
 
 ```bash
-# Run MCP server locally (FastMCP auto-detects mode)
-python mcp/mcp_server.py
-```
-
-**For Cloud Deployment (HTTP/SSE mode)**:
-
-```bash
-# Deploy to Cloud Run
-./deploy/deploy-mcp.sh
-```
-
-**Features**:
-
-- Natural language queries
-- Pre-defined analysis prompts
-- 9 tools for data operations
-- 22+ resources for data access
-
-👉 **See**: [MCP Server Documentation](service/README.md)
-
----
-
-### Option 2: Local Data Cleaning
-
-```bash
-# 1. Install dependencies
-pip install -r requirements.txt
-
-# 2. Configure service account
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
-
-# 3. Edit configuration
-vim config/config.json
-
-# 4. Test with dry-run mode
-python core/clean_pipeline.py --config config/config.json --dry-run
-
-# 5. Run cleaning pipeline
-python core/clean_pipeline.py --config config/config.json
-```
-
-👉 **See**: Quick Start section above
-
----
-
-### Option 3: Cloud Deployment
-
-Deploy API and MCP services to Google Cloud Run:
-
-```bash
-# Set GCP project ID
-export GCP_PROJECT_ID=your-project-id
-
-# Setup secrets in Secret Manager (first time only)
-./deploy/setup-secrets.sh
-
-# Deploy all services
-./deploy/deploy-all.sh
-
-# Setup Cloud Scheduler (automatically reads token from Secret Manager)
-./deploy/setup-scheduler.sh
-```
-
-**Features**:
-
-- Auto-scaling based on traffic
-- Scheduled updates (every 30 minutes)
-- Low cost (~$1/month in free tier)
-- Bearer token authentication
-- **Automatic Token Management**: All scripts automatically read tokens from Secret Manager
-- **Unified Configuration**: No hardcoded tokens, all managed through Secret Manager
-
-👉 **See**: Cloud Deployment section below
-
----
-
-## 📚 Additional Resources
-
-- **MCP Server Guide**: See `service/README.md` for complete MCP usage guide
-- **API Documentation**: Interactive API docs available at `/docs` endpoint when running locally
-- **Deployment Scripts**: See `deploy/` directory for deployment automation
-
----
-
-## 🔑 Key Features
-
-### 🤖 AI Assistant Integration (MCP Protocol)
-
-**10 Tools** (Action-oriented operations):
-
-- `query_volunteers_by_date` - Query volunteer assignments
-- `query_sermon_by_date` - Query sermon information
-- `query_date_range` - Query across date ranges
-- `clean_ministry_data` - Trigger cleaning pipeline
-- `generate_service_layer` - Generate domain models
-- `validate_raw_data` - Validate data quality
-- `sync_from_gcs` - Sync from cloud storage
-- `check_upcoming_completeness` - Check future scheduling
-- `generate_weekly_preview` - Generate weekly preview
-- `get_volunteer_service_counts` - Generate service statistics (supports role filtering)
-
-**22+ Resources** (Read-only data access):
-
-- `ministry://sermon/records/{year}` - Sermon records
-- `ministry://sermon/by-preacher/{name}` - Sermons by preacher
-- `ministry://volunteer/assignments/{date}` - Volunteer assignments
-- `ministry://volunteer/by-person/{id}` - Service history
-- `ministry://stats/summary` - Overall statistics
-
-**12+ Prompts** (Pre-defined analysis templates):
-
-- `analyze_preaching_schedule` - Analyze sermon patterns
-- `analyze_volunteer_balance` - Check service load balance
-- `find_scheduling_gaps` - Find unfilled positions
-- `suggest_preacher_rotation` - Suggest preacher schedule
-- `check_data_quality` - Data quality assessment
-
-**Dual Transport Modes**:
-
-- **stdio**: For Claude Desktop local integration (no network overhead)
-- **HTTP/SSE**: For cloud integration with remote clients
-
----
-
-### 📊 Data Management
-
-**Intelligent Cleaning**:
-
-- Date normalization (multiple formats → YYYY-MM-DD)
-- Text cleaning (spaces, placeholders, standardization)
-- Alias mapping (multiple names → unified person_id)
-- Song splitting and deduplication
-- Scripture formatting
-- Column merging
-- Comprehensive validation
-
-**Service Layer Transformation**:
-
-- Sermon domain model (sermons, preachers, songs)
-- Volunteer domain model (roles, assignments, availability)
-- Yearly partitioning (2024-2026+)
-- Cloud Storage backup (Google Cloud Storage)
-
-**Change Detection**:
-
-- SHA-256 hash comparison
-- Skip processing if no changes detected
-- 99%+ faster on repeated runs
-- Reduces API calls and costs
-
----
-
-### ☁️ Cloud Deployment
-
-**API Service**:
-
-- Complete REST API for data access
-- Data cleaning endpoints
-- Statistics and analytics
-- Bearer token authentication
-- Auto-scaling (1GB memory, max 3 instances)
-
-**MCP Service**:
-
-- HTTP/SSE endpoint for MCP protocol
-- Remote AI assistant integration
-- Bearer token authentication
-- Auto-scaling (512MB memory, max 10 instances)
-
-**Scheduling**:
-
-- Cloud Scheduler triggers every 30 minutes
-- Change detection prevents unnecessary runs
-- Automated data updates
-- **Token Management**: Scheduler job automatically reads token from Secret Manager via `deploy/setup-scheduler.sh`
-- **Unified Authentication**: Scheduler and API service use the same token from Secret Manager, ensuring consistency
-
-**Cost Optimization**:
-
-- Within Google Cloud free tier (~$1/month)
-- Pay-per-use pricing
-- Smart caching and optimization
-
----
-
-## 🛠️ Technology Stack
-
-### Backend Framework
-
-| Component                 | Technology    | Version | Purpose                |
-| ------------------------- | ------------- | ------- | ---------------------- |
-| **API Framework**   | FastAPI       | 0.118+  | Async HTTP endpoints   |
-| **ASGI Server**     | Uvicorn       | 0.37+   | Production server      |
-| **MCP SDK**         | FastMCP       | 2.0+    | Simplified MCP Server  |
-| **SSE Transport**   | sse-starlette | 2.0+    | Server-Sent Events     |
-| **Data Processing** | Pandas        | 2.2+    | DataFrame operations   |
-| **Type Validation** | Pydantic      | 2.12+   | Data models            |
-
-### Google Cloud Integration
-
-| Component                   | Technology                      | Purpose                  |
-| --------------------------- | ------------------------------- | ------------------------ |
-| **Google Sheets API** | google-api-python-client 2.149+ | Read/write data          |
-| **Cloud Storage**     | google-cloud-storage 2.10+      | File storage             |
-| **Authentication**    | google-auth 2.34+               | OAuth2, service accounts |
-
-### Infrastructure & Deployment
-
-| Component                  | Technology       | Purpose            |
-| -------------------------- | ---------------- | ------------------ |
-| **Containerization** | Docker           | Container images   |
-| **Cloud Hosting**    | Google Cloud Run | Serverless compute |
-| **Scheduling**       | Cloud Scheduler  | Periodic updates   |
-| **Secrets**          | Secret Manager   | Token storage (✅ Integrated) |
-| **Logging**          | Cloud Logging    | Centralized logs   |
-
----
-
-## 📦 Project Structure
-
-```
-Grace-Irvine-Ministry-Clean/
-│
-├── api/                         # 🔵 API Service (Data cleaning & REST API)
-│   ├── app.py                   # FastAPI application
-│   ├── Dockerfile               # API service container
-│   └── README.md                # API documentation
-│
-├── mcp/                         # 🟢 MCP Service (AI assistant integration)
-│   ├── mcp_server.py            # Unified FastMCP server (stdio + HTTP)
-│   ├── Dockerfile               # MCP service container
-│
-├── service/                      # 🟣 Additional service utilities (includes MCP server copy + scheduler examples)
-│   ├── mcp_server.py             # MCP server (mirrors `mcp/mcp_server.py`)
-│   ├── README.md                 # MCP usage guide (authoritative doc)
-│   └── example/                  # Weekly preview scheduler examples & scripts
-│
-├── core/                        # 🔧 Shared business logic (80%+ reuse)
-│   ├── clean_pipeline.py        # Main cleaning orchestration
-│   ├── service_layer.py         # Service layer transformer
-│   ├── cleaning_rules.py        # Cleaning rules
-│   ├── validators.py            # Data validators
-│   ├── alias_utils.py           # Alias mapping
-│   ├── gsheet_utils.py          # Google Sheets client
-│   ├── cloud_storage_utils.py   # Cloud Storage client
-│   ├── change_detector.py       # Change detection
-│   └── schema_manager.py        # Schema management
-│
-├── deploy/                      # 📦 Deployment scripts
-│   ├── deploy-api.sh            # Deploy API service
-│   ├── deploy-mcp.sh            # Deploy MCP service
-│   └── deploy-all.sh            # Deploy all services
-│
-├── config/                      # ⚙️ Configuration files
-│   ├── config.json              # Main configuration
-│   ├── env.example              # Environment variables
-│   └── service-account.json     # GCP service account
-│
-├── logs/                        # 📊 Logs and outputs
-│   ├── clean_preview.csv        # Cleaned data (CSV)
-│   ├── clean_preview.json       # Cleaned data (JSON)
-│   ├── service_layer/           # Service layer data
-│   └── validation_report_*.txt  # Validation reports
-│
-├── examples/                    # 💡 Examples
-│   ├── mcp_client_example.py
-│   └── volunteer_analysis_examples.md
-│
-├── test_weekly_preview.py        # 🧪 Weekly preview test
-├── test_weekly_preview_manual.py # 🧪 Weekly preview manual test
-│
-├── CHANGELOG.md                 # Version history
-├── README.md                    # This file
-├── requirements.txt             # Python dependencies
-└── .gitignore                   # Git ignore rules
-```
-
----
-
-## 💡 Usage Examples
-
-### Example 1: AI Query via Claude Desktop
-
-**User**: "Show me next Sunday's service schedule"
-
-**Claude** (using MCP tools):
-
-```
-Using query_volunteers_by_date tool with date=2025-10-26...
-
-Next Sunday (2025-10-26) Service Schedule:
-
-📖 Sermon: "The Power of Prayer" by Pastor Zhang
-   Series: Prayer Series | Scripture: Matthew 6:9-13
-
-🎵 Worship Team:
-   - Lead: Wang Li
-   - Team: Chen Ming, Lin Fang
-   - Pianist: Li Wei
-
-🎤 Technical Team:
-   - Audio: Zhao Qiang
-   - Video: Zhou Chen
-```
-
----
-
-### Example 2: REST API Query
-
-```bash
-# Get sermon records for 2024
-curl "https://your-api.run.app/api/v1/sermon?year=2024"
-
-# Get volunteer assignments for a specific date
-curl "https://your-api.run.app/api/v1/volunteer/by-person/person_wangli"
-
-# Trigger data cleaning (requires Bearer token)
-curl -X POST "https://your-api.run.app/api/v1/clean" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"dry_run": false}'
-```
-
----
-
-### Example 3: Local Cleaning Pipeline
-
-```bash
-# Test with dry-run mode
-python core/clean_pipeline.py --config config/config.json --dry-run
-
-# Output:
-# ✅ Read source data: 100 rows
-# ✅ Cleaned successfully: 95 rows
-# ⚠️  Warnings: 3 rows
-# ❌ Errors: 2 rows
-# ✅ Generated logs/clean_preview.json
-
-# Run actual cleaning
-python core/clean_pipeline.py --config config/config.json
-```
-
----
-
-## 🧪 Testing
-
-### Run Smoke Tests
-
-```bash
-python test_weekly_preview.py
-python test_weekly_preview_manual.py
-```
-
-*(Note: The repo includes `pytest` as a dependency, but the primary automated checks currently live in the two scripts above.)*
-
----
-
-## 🔒 Security & Permissions
-
-### Minimum Privilege Principle
-
-- ✅ Source sheets: Read-only (Viewer) permission
-- ✅ Target sheets: Write-only to specific ranges
-- ✅ Alias sheets: Read-only (Viewer) permission
-
-### Sensitive Information Protection
-
-- ❌ **DO NOT** commit service account JSON files to repository
-- ✅ Use `.gitignore` to exclude `*.json` (except `config/config.json`)
-- ✅ Use environment variable `GOOGLE_APPLICATION_CREDENTIALS`
-- ✅ **Secret Manager Integration**: All services and deployment scripts automatically read tokens from Google Secret Manager
-- ✅ **Automatic Fallback**: Services read from Secret Manager first, then environment variables
-- ✅ **No Hardcoded Tokens**: All deployment scripts (`deploy/setup-scheduler.sh`, `deploy/deploy-api.sh`) automatically read from Secret Manager
-- ✅ Store tokens in Secret Manager for production (recommended)
-- ✅ Use environment variables for local development
-- ❌ Never print sensitive tokens in logs
-
-**Secret Manager Support**:
-- Cloud Run services integrate with Secret Manager (API + MCP; weekly-preview service is optional)
-- All deployment scripts automatically read from Secret Manager
-- 4 secrets managed: `mcp-bearer-token`, `api-scheduler-token`, `weekly-preview-scheduler-token`, `weekly-preview-smtp-password`
-- Automatic token rotation support
-- **Unified Token Management**: Scheduler jobs and services use the same tokens from Secret Manager, automatically synchronized
-
-### Authentication
-
-**API Service**:
-
-- Bearer Token authentication for protected endpoints
-- Public access for health checks and documentation
-- Configurable via environment variable
-
-**MCP Service**:
-
-- Bearer Token authentication for HTTP/SSE mode (optional)
-- No authentication for stdio mode (local only)
-- CORS middleware enabled for remote clients
-- Bearer Token automatically loaded from Secret Manager (`mcp-bearer-token`)
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Here's how you can help:
-
-1. **Report Issues**: Found a bug? [Open an issue](https://github.com/yourusername/Grace-Irvine-Ministry-Clean/issues)
-2. **Suggest Features**: Have an idea? Share it in discussions
-3. **Submit PRs**: Fork, create a feature branch, and submit a pull request
-4. **Improve Docs**: Help us make documentation clearer
-
-### Development Setup
-
-```bash
-# Clone repository
-git clone https://github.com/yourusername/Grace-Irvine-Ministry-Clean.git
+# Clone
+git clone https://github.com/Grace-Irvine/Grace-Irvine-Ministry-Clean.git
 cd Grace-Irvine-Ministry-Clean
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Run tests
-pytest tests/ -v
+# Configure
+cp config/env.example .env
+# Edit .env with your Google Sheets ID, GCS bucket, etc.
 
-# Start API service locally
-cd api && uvicorn app:app --reload
-
-# Start MCP service locally (FastMCP)
-cd mcp && python mcp_server.py
+# Run the cleaning pipeline
+python core/clean_pipeline.py --config config/config.json
 ```
 
----
+### Environment Variables
 
-## 📄 License
+| Variable | Description |
+|---|---|
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to service account JSON |
+| `GCS_BUCKET` | GCS bucket name (default: `grace-irvine-ministry-data`) |
+| `GCS_BASE_PATH` | Base path in bucket (default: `domains/`) |
+| `CONFIG_PATH` | Path to `config.json` |
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) file for details.
+### Deploy MCP Server to Cloud Run
 
----
+```bash
+cd mcp/
+gcloud run deploy ministry-data-mcp \
+  --source . \
+  --region us-central1 \
+  --set-secrets MCP_BEARER_TOKEN=mcp-bearer-token:latest
+```
 
-## 🙏 Acknowledgments
+## Related Repos
 
-- **FastAPI** - Modern Python web framework
-- **MCP SDK** - Model Context Protocol implementation
-- **FastMCP** - Simplified MCP framework for Python
-- **Google Cloud** - Cloud infrastructure
-- **Anthropic Claude** - AI assistant integration
+| Repo | Role |
+|---|---|
+| **[Ministry-UI](https://github.com/Grace-Irvine/Grace-Irvine-Ministry-UI)** | Next.js chat interface — the user-facing AI assistant |
+| **Ministry-Clean** (this repo) | Data pipeline + MCP server — the data backbone |
+| **[Ministry-Scheduler](https://github.com/Grace-Irvine/Grace-Irvine-Ministry-Scheduler)** | Automated scheduling for ministry teams |
+| **[Ministry-data-visualizer](https://github.com/Grace-Irvine/Grace-Irvine-Ministry-data-visualizer)** | Data visualization dashboard |
 
----
+## License
 
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/yourusername/Grace-Irvine-Ministry-Clean/issues)
-- **Email**: jonathanjing@graceirvine.org
-
----
-
-**Built with ❤️ for Grace Irvine Church Ministry**
+MIT
