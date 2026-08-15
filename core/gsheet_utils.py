@@ -9,6 +9,7 @@ import json
 from typing import List, Dict, Any, Optional, Union, Tuple
 from pathlib import Path
 import pandas as pd
+import google.auth
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -37,26 +38,18 @@ class GSheetClient:
             # 尝试从 config.json 读取
             credentials_path = self._get_credentials_from_config()
         
-        if not credentials_path:
-            raise ValueError(
-                "未找到 Google 凭证。请：\n"
-                "1. 设置 GOOGLE_APPLICATION_CREDENTIALS 环境变量，或\n"
-                "2. 在 config.json 的 service_layer.storage.service_account_file 中配置路径，或\n"
-                "3. 将凭证文件放在 config/service-account.json"
-            )
-        
-        if not os.path.exists(credentials_path):
-            raise FileNotFoundError(f"凭证文件不存在: {credentials_path}")
-        
-        if not os.path.isfile(credentials_path):
-            raise ValueError(f"凭证路径不是文件: {credentials_path}")
-        
-        try:
-            self.credentials = service_account.Credentials.from_service_account_file(
-                credentials_path, scopes=self.SCOPES
-            )
-        except Exception as e:
-            raise ValueError(f"无法加载凭证文件 {credentials_path}: {str(e)}")
+        if credentials_path and os.path.isfile(credentials_path):
+            try:
+                self.credentials = service_account.Credentials.from_service_account_file(
+                    credentials_path, scopes=self.SCOPES
+                )
+            except Exception as e:
+                raise ValueError(f"无法加载凭证文件 {credentials_path}: {str(e)}")
+        else:
+            # Cloud Run and other Google Cloud runtimes use their attached
+            # service account through Application Default Credentials.
+            self.credentials, _ = google.auth.default(scopes=self.SCOPES)
+
         self.service = build('sheets', 'v4', credentials=self.credentials)
         self.sheets = self.service.spreadsheets()
     
@@ -343,4 +336,3 @@ class GSheetClient:
             
         except HttpError as e:
             raise RuntimeError(f"追加数据到 Google Sheet 失败: {e}")
-

@@ -50,13 +50,13 @@ class CloudStorageClient:
         self.base_path = base_path.rstrip('/') + '/'
         
         # 初始化 GCS 客户端
-        if service_account_file:
+        if service_account_file and Path(service_account_file).is_file():
             credentials = service_account.Credentials.from_service_account_file(
                 service_account_file
             )
             self.client = storage.Client(credentials=credentials)
         else:
-            # 使用默认凭证（如环境变量 GOOGLE_APPLICATION_CREDENTIALS）
+            # 使用运行环境绑定的服务账号（Application Default Credentials）
             self.client = storage.Client()
         
         self.bucket = self.client.bucket(bucket_name)
@@ -549,4 +549,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
