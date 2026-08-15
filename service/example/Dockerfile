@@ -26,13 +26,10 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY core/ /app/core/
 
 # 复制项目文件
-COPY mcp/example/weekly_preview_scheduler.py /app/weekly_preview_scheduler.py
+COPY service/example/weekly_preview_scheduler.py /app/weekly_preview_scheduler.py
 
 # 复制配置文件（如果需要）
 COPY config/ /app/config/
-
-# 设置服务账号凭证环境变量（如果使用）
-ENV GOOGLE_APPLICATION_CREDENTIALS=/app/config/service-account.json
 
 # 暴露端口
 EXPOSE 8080

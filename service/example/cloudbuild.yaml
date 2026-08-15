@@ -6,7 +6,7 @@ steps:
       - '-t'
       - 'gcr.io/$PROJECT_ID/weekly-preview-scheduler:latest'
       - '-f'
-      - 'mcp/example/Dockerfile'
+      - 'service/example/Dockerfile'
       - '.'
     id: 'build-image'
 

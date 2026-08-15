@@ -31,12 +31,8 @@ COPY config/ /app/config/
 # 创建日志目录
 RUN mkdir -p /app/logs /app/logs/service_layer
 
-# 设置服务账号凭证环境变量
-ENV GOOGLE_APPLICATION_CREDENTIALS=/app/config/service-account.json
-
 # 暴露端口
 EXPOSE 8080
 
 # 启动统一的MCP服务器 (使用 uvicorn 直接启动，更可靠)
 CMD ["uvicorn", "mcp.mcp_server:app", "--host", "0.0.0.0", "--port", "8080"]
-

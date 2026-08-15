@@ -45,6 +45,10 @@ logs/*.json
 *.json
 !config/config.json
 
+# Packaged MCP extensions
+*.mcpb
+*.dxt
+
 # macOS
 .DS_Store
 

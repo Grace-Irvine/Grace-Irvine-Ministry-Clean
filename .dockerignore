@@ -67,3 +67,10 @@ tests/generated_aliases.csv
 tmp/
 temp/
 
+# Credentials and private keys
+service-account.json
+service_account.json
+**/service-account.json
+**/service_account.json
+*.pem
+*.key

@@ -62,12 +62,24 @@ test_api_*.sh
 run_test.sh
 verify_and_run.sh
 
+# Packaged artifacts
+*.mcpb
+*.dxt
+
+# Credentials and private keys
+.env
+.env.*
+service-account.json
+service_account.json
+**/service-account.json
+**/service_account.json
+*.pem
+*.key
+
 # Don't exclude these important files:
 !app.py
 !scripts/*.py
 !config/config.json
-!config/service-account.json
 !requirements.txt
 !Dockerfile
 !.dockerignore
-
